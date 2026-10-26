@@ -68,6 +68,7 @@ canvas{position:absolute;inset:0;width:100%;height:100%}
 <div class="brand"><b>Gala Sahne</b> · Smart Kontrol</div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js"></script>
 <script>
 (function(){
 "use strict";
@@ -190,21 +191,39 @@ function draw(now){
 var flashes=[];function flash(x,y,ok){flashes.push({x:x,y:y,ok:ok,t:performance.now()})}
 function loop(now){draw(now);requestAnimationFrame(loop)}requestAnimationFrame(loop);
 
-/* ---------- phone link ---------- */
+/* ---------- phone link: direct WebRTC data channel (PeerJS), ntfy only as a fallback ---------- */
+var conns={};
+function tell(player,msg,tags){
+  var c=conns[player.id];
+  if(c&&c.open){try{c.send({t:tags[0],m:msg})}catch(e){}}
+  else post({topic:topic+"-"+player.id,message:msg,title:"Sahne",tags:tags||["info"]});
+}
+function onJoin(id,name){
+  var p={id:id,name:String(name||"Oyuncu").slice(0,16)};
+  if(game&&game.p.id===p.id)return;
+  if(queue.some(function(q){return q.id===p.id}))return;
+  queue.push(p);renderQueue();
+  if(!game)nextPlayer();else tell(p,"Sıradasın: "+queue.length+". Yaklaşık "+(queue.length*40)+" saniye.",["queued"]);
+}
+function onMove(id,v){if(game&&game.p.id===id){v=parseFloat(v);if(!isNaN(v))targetX=Math.max(0,Math.min(1,v))}}
+var peer=null;
+function startPeer(){
+  try{peer=new Peer("gs-"+topic,{debug:0})}catch(e){return}
+  peer.on("connection",function(c){
+    c.on("data",function(d){if(!d)return;if(d.t==="join"){conns[c.peer]=c;onJoin(c.peer,d.m)}else if(d.t==="move")onMove(c.peer,d.m)});
+    c.on("close",function(){delete conns[c.peer]});
+  });
+  peer.on("error",function(e){if(e&&e.type==="unavailable-id"){setTimeout(startPeer,3000)}});
+  peer.on("disconnected",function(){try{peer.reconnect()}catch(e){}});
+}
+startPeer();
 var seen={};
 function handle(j){
   if(!j||j.event!=="message"||seen[j.id])return;seen[j.id]=1;
   if(Date.now()-(j.time||0)*1000>60000)return;
   var tags=j.tags||[],msg=String(j.message||"");
-  if(tags.indexOf("join")>-1){
-    var p={id:j.title,name:msg.slice(0,16)||"Oyuncu"};
-    if(game&&game.p.id===p.id)return;
-    if(queue.some(function(q){return q.id===p.id}))return;
-    queue.push(p);renderQueue();
-    if(!game)nextPlayer();else tell(p,"Sıradasın: "+queue.length+". Yaklaşık "+(queue.length*40)+" saniye.",["queued"]);
-    return;
-  }
-  if(tags.indexOf("move")>-1&&game&&game.p.id===j.title){var v=parseFloat(msg);if(!isNaN(v))targetX=Math.max(0,Math.min(1,v))}
+  if(tags.indexOf("join")>-1)onJoin(j.title,msg);
+  else if(tags.indexOf("move")>-1)onMove(j.title,msg);
 }
 function listen(){
   var es=new EventSource(NTFY+topic+"/sse?since=10s");

@@ -56,19 +56,37 @@ input{width:100%;min-height:54px;padding:0 14px;border:1px solid #2A3242;border-
   </div>
 </div>
 <div class="big" id="big" hidden><div><h2 id="bigT">Perde!</h2><p id="bigP"></p></div></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js"></script>
 <script>
 (function(){
 "use strict";
 var NTFY="https://ntfy.sh/",$=function(id){return document.getElementById(id)};
 var m=/[#&]k=([a-z0-9-]{6,64})/.exec(location.hash||""),topic=m?m[1]:"";
 if(!topic){$("join").innerHTML="<p>Bu sayfa standdaki karekoddan açılmalı.</p>";return}
-var id="p"+Math.random().toString(36).slice(2,9),score=0;
+var id="p"+Math.random().toString(36).slice(2,9),score=0,conn=null,direct=false;
+function send(t,m){if(conn&&conn.open){try{conn.send({t:t,m:m});return}catch(e){}}post(m,[t])}
+function connect(cb){
+  var done=false,fin=function(ok){if(done)return;done=true;direct=ok;cb()};
+  try{
+    var peer=new Peer(null,{debug:0});
+    peer.on("open",function(){
+      var c=peer.connect("gs-"+topic,{reliable:false,serialization:"json"});
+      c.on("open",function(){conn=c;fin(true)});
+      c.on("data",function(d){if(d&&d.t)feedback(d.t,String(d.m||""))});
+      c.on("close",function(){conn=null});
+      c.on("error",function(){fin(false)});
+    });
+    peer.on("error",function(){fin(false)});
+    setTimeout(function(){fin(false)},4000);
+  }catch(e){fin(false)}
+}
 function post(msg,tags){var x=new XMLHttpRequest();x.open("POST",NTFY,true);x.setRequestHeader("Content-Type","application/json");x.send(JSON.stringify({topic:topic,message:msg,title:id,tags:tags}))}
 try{$("name").value=localStorage.getItem("dy.name")||""}catch(e){}
 $("go").addEventListener("click",function(){
   var n=$("name").value.trim();if(!n){$("name").focus();return}
   try{localStorage.setItem("dy.name",n)}catch(e){}
-  $("go").disabled=true;post(n,["join"]);$("join").hidden=true;$("state").hidden=false;listen();
+  $("go").disabled=true;$("go").textContent="Bağlanıyor…";
+  connect(function(){send("join",n);$("join").hidden=true;$("state").hidden=false;$("stSub").textContent=direct?"Sahne ekranına bak · doğrudan bağlantı":"Sahne ekranına bak";if(!direct)listen()});
 });
 /* slider */
 var track=$("track"),car=$("car"),last=0,lastV=-1;
@@ -76,7 +94,8 @@ function setX(clientX){
   var r=track.getBoundingClientRect(),v=Math.max(0,Math.min(1,(clientX-r.left)/r.width));
   car.style.left=(v*100)+"%";
   var now=Date.now();
-  if(now-last>70&&Math.abs(v-lastV)>0.01){last=now;lastV=v;post(v.toFixed(3),["move"])}
+  var gap=direct?16:70;
+  if(now-last>gap&&Math.abs(v-lastV)>0.003){last=now;lastV=v;send("move",v.toFixed(3))}
 }
 function onT(e){if(e.touches&&e.touches[0])setX(e.touches[0].clientX);e.preventDefault()}
 track.addEventListener("touchstart",onT,{passive:false});track.addEventListener("touchmove",onT,{passive:false});
@@ -87,14 +106,19 @@ function listen(){
   es.onmessage=function(ev){
     try{var j=JSON.parse(ev.data)}catch(e){return}
     if(j.event!=="message")return;
-    var t=j.tags||[],msg=j.message||"";
+    feedback((j.tags||[])[0],j.message||"");
+  };
+  es.onerror=function(){es.close();setTimeout(listen,2000)};
+  esRef=es;
+}
+var esRef=null;
+function feedback(tag,msg){
+    var t=[tag];
     if(t.indexOf("queued")>-1){$("stSub").textContent=msg}
     if(t.indexOf("start")>-1){$("st").firstChild.nodeValue="Sahne senin!";$("stSub").textContent="30 saniye";$("sc").hidden=false;$("pad").hidden=false;try{navigator.vibrate&&navigator.vibrate(200)}catch(e){}}
     if(t.indexOf("hit")>-1){score+=parseInt(msg,10)||0;$("sc").textContent=String(score);try{navigator.vibrate&&navigator.vibrate(40)}catch(e){}}
     if(t.indexOf("end")>-1){$("pad").hidden=true;$("bigT").textContent=score>=60?"Bravo!":"Perde!";$("bigP").innerHTML="";var b=document.createElement("b");b.textContent=msg;$("bigP").appendChild(b);$("big").hidden=false;
-      setTimeout(function(){$("big").hidden=true;$("state").hidden=true;$("join").hidden=false;$("go").disabled=false;score=0;$("sc").textContent="0";$("sc").hidden=true;$("st").firstChild.nodeValue="Sıradasın";$("stSub").textContent="Sahne ekranına bak";es.close()},6000)}
-  };
-  es.onerror=function(){es.close();setTimeout(listen,2000)};
+      setTimeout(function(){$("big").hidden=true;$("state").hidden=true;$("join").hidden=false;$("go").disabled=false;score=0;$("sc").textContent="0";$("sc").hidden=true;$("st").firstChild.nodeValue="Sıradasın";$("stSub").textContent="Sahne ekranına bak";if(esRef)esRef.close();if(conn){try{conn.close()}catch(e){}conn=null}},6000)}
 }
 })();
 </script>
