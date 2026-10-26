@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#07090D">
+<title>Asın Çökmesin — Kumanda</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;900&family=Figtree:wght@500;700&display=swap">
+<style>
+/* Layout: one phone screen. Top: status. Middle: the truss as a horizontal rail with load markers; drag motor chips onto it. Bottom: big HANG button. */
+:root{--bg:#07090D;--fg:#F2F0EA;--muted:#8E95A3;--accent:#F5B041;--on:#1A1203;--panel:#131824;--good:#5BD38F;--bad:#FF5F5F;
+  --f-big:"Big Shoulders Display","Arial Narrow",Impact,sans-serif;--f:"Figtree",-apple-system,"Segoe UI",Roboto,sans-serif}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;background:var(--bg);color:var(--fg);font-family:var(--f);overflow:hidden;-webkit-user-select:none;user-select:none;touch-action:none}
+.app{height:100%;display:flex;flex-direction:column;gap:12px;padding:max(14px,env(safe-area-inset-top)) 16px max(14px,env(safe-area-inset-bottom))}
+h1{margin:0;font-family:var(--f-big);font-weight:900;font-size:40px;line-height:.9;text-transform:uppercase;color:var(--accent)}
+.sub{color:var(--muted);font-size:14px;margin-top:4px}
+.card{background:var(--panel);border-radius:16px;padding:14px;display:flex;flex-direction:column;gap:10px}
+input{width:100%;min-height:54px;padding:0 14px;border:1px solid #2A3242;border-radius:12px;background:#0C1019;color:var(--fg);font:inherit;font-size:20px}
+.btn{min-height:64px;border:0;border-radius:16px;background:var(--accent);color:var(--on);font:inherit;font-weight:900;font-family:var(--f-big);font-size:30px;letter-spacing:.04em;text-transform:uppercase}
+.btn:disabled{opacity:.4}
+.status{font-family:var(--f-big);font-weight:900;font-size:30px;line-height:1;text-transform:uppercase}
+.status small{display:block;font-family:var(--f);font-size:14px;font-weight:500;color:var(--muted);text-transform:none;margin-top:4px}
+.nums{display:flex;gap:14px}
+.nums div{font-family:var(--f-big);font-weight:900;font-size:40px;line-height:.9;font-variant-numeric:tabular-nums}
+.nums div small{display:block;font-family:var(--f);font-size:11px;font-weight:700;letter-spacing:.12em;color:var(--muted)}
+.rig{flex:1;min-height:0;display:flex;flex-direction:column;justify-content:center;gap:8px}
+.track{position:relative;height:190px;border-radius:18px;background:linear-gradient(#141A27,#0E131C);border:1px solid #2A3242;overflow:hidden}
+.beam{position:absolute;left:6%;right:6%;top:84px;height:14px;background:repeating-linear-gradient(135deg,#C9CDD6 0 6px,#8E95A3 6px 12px);border-radius:3px}
+.tick{position:absolute;top:64px;font-size:11px;color:rgba(255,255,255,.4);transform:translateX(-50%)}
+.load{position:absolute;top:104px;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:2px;font-size:11px;color:var(--muted);text-align:center;white-space:nowrap}
+.load i{display:block;width:3px;height:16px;background:#9AA3B2}
+.load b{display:block;padding:3px 6px;border-radius:5px;color:#fff;font-size:11px}
+.motor{position:absolute;top:22px;width:56px;height:56px;margin-left:-28px;border-radius:14px;background:var(--accent);color:var(--on);display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:900;font-family:var(--f-big);font-size:22px;line-height:1;box-shadow:0 6px 20px rgba(245,176,65,.45)}
+.motor small{font-family:var(--f);font-size:10px;font-weight:700}
+.motor.pct{background:#2E3542;color:#fff;box-shadow:none}
+.motor.pct.bad{background:var(--bad)}
+.motor.pct.ok{background:var(--good);color:var(--on)}
+.hint{text-align:center;color:var(--muted);font-size:13px}
+.big{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:24px;background:rgba(7,9,13,.92)}
+.big h2{margin:0;font-family:var(--f-big);font-weight:900;font-size:56px;line-height:.9;text-transform:uppercase}
+.big h2.bad{color:var(--bad)}
+.big p{font-size:18px;color:var(--muted);margin:10px 0 0}
+.big p b{color:var(--accent);font-size:26px}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<div class="app">
+  <div><h1>Asın, Çökmesin</h1><div class="sub">Gala Sahne · Rigging</div></div>
+  <div class="card" id="join">
+    <label for="name" style="color:var(--muted);font-size:14px">Adın (skor tablosunda görünür)</label>
+    <input id="name" maxlength="16" placeholder="Ör. Harun" autocomplete="off">
+    <button class="btn" id="go" style="font-size:22px">Sıraya gir</button>
+  </div>
+  <div class="card" id="state" hidden>
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
+      <div class="status" id="st">Sıradasın<small id="stSub">Sahne ekranına bak</small></div>
+      <div class="nums"><div><span id="lvl">1</span><small>TUR</small></div><div><span id="sc">0</span><small>PUAN</small></div></div>
+    </div>
+  </div>
+  <div class="rig" id="rig" hidden>
+    <div class="hint" id="tip">Motorları parmağınla truss üzerinde kaydır</div>
+    <div class="track" id="track"><div class="beam"></div></div>
+    <button class="btn" id="hang">Yükleri as</button>
+  </div>
+</div>
+<div class="big" id="big" hidden><div><h2 id="bigT">Sağlam!</h2><p id="bigP"></p></div></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js"></script>
+<script>
+(function(){
+"use strict";
+var NTFY="https://ntfy.sh/",$=function(id){return document.getElementById(id)};
+var m=/[#&]k=([a-z0-9-]{6,64})/.exec(location.hash||""),topic=m?m[1]:"";
+if(!topic){$("join").innerHTML="<p>Bu sayfa standdaki karekoddan açılmalı.</p>";return}
+var id="p"+Math.random().toString(36).slice(2,9),conn=null,direct=false,lvl=null,motors=[],locked=false,score=0;
+function post(msg,tags){var x=new XMLHttpRequest();x.open("POST",NTFY,true);x.setRequestHeader("Content-Type","application/json");x.send(JSON.stringify({topic:topic,message:msg,title:id,tags:tags}))}
+function send(t,m){if(conn&&conn.open){try{conn.send({t:t,m:m});return}catch(e){}}post(typeof m==="string"?m:JSON.stringify(m),[t])}
+function connect(cb){
+  var done=false,fin=function(ok){if(done)return;done=true;direct=ok;cb()};
+  try{
+    var peer=new Peer(null,{debug:0,config:{iceServers:[{urls:"stun:stun.l.google.com:19302"},{urls:"stun:stun1.l.google.com:19302"}]}});
+    peer.on("open",function(){var c=peer.connect("gs-"+topic,{reliable:true,serialization:"json"});
+      c.on("open",function(){conn=c;fin(true)});c.on("data",function(d){if(d&&d.t)feedback(d.t,d.m)});c.on("close",function(){conn=null});c.on("error",function(){fin(false)})});
+    peer.on("error",function(){fin(false)});setTimeout(function(){fin(false)},8000);
+  }catch(e){fin(false)}
+}
+try{$("name").value=localStorage.getItem("tr.name")||""}catch(e){}
+$("go").addEventListener("click",function(){
+  var n=$("name").value.trim();if(!n){$("name").focus();return}
+  try{localStorage.setItem("tr.name",n)}catch(e){}
+  $("go").disabled=true;$("go").textContent="Bağlanıyor…";
+  connect(function(){send("join",n);$("join").hidden=true;$("state").hidden=false;$("stSub").textContent=direct?"Sahne ekranına bak · doğrudan bağlantı":"Sahne ekranına bak · yavaş bağlantı";if(!direct)listen()});
+});
+
+/* ---------- rig UI ---------- */
+var track=$("track");
+function xToPx(x){var r=track.clientWidth;return r*0.06+(x/lvl.span)*r*0.88}
+function pxToX(px){var r=track.clientWidth;return Math.max(0,Math.min(lvl.span,(px-r*0.06)/(r*0.88)*lvl.span))}
+function buildLevel(){
+  track.innerHTML='<div class="beam"></div>';locked=false;
+  for(var i=0;i<=lvl.span;i+=2){var t=document.createElement("span");t.className="tick";t.style.left=xToPx(i)+"px";t.textContent=i+"m";track.appendChild(t)}
+  lvl.loads.forEach(function(l){var d=document.createElement("div");d.className="load";d.style.left=xToPx(l.x)+"px";
+    var bar=document.createElement("i");var b=document.createElement("b");b.textContent=l.kg+" kg";b.style.background=l.n.indexOf("LED")>-1?"#4C6FB5":l.n.indexOf("Hoparl")>-1?"#555B66":"#B5322E";
+    var s=document.createElement("span");s.textContent=l.n;d.appendChild(bar);d.appendChild(b);d.appendChild(s);track.appendChild(d)});
+  motors=[];for(var k=0;k<lvl.motors;k++)motors.push(lvl.span*(k+1)/(lvl.motors+1));
+  motors.forEach(function(x,i){var mo=document.createElement("div");mo.className="motor";mo.id="m"+i;mo.innerHTML="M"+(i+1)+"<small>"+lvl.cap+" kg</small>";mo.style.left=xToPx(x)+"px";
+    var drag=function(e){if(locked)return;var p=e.touches?e.touches[0]:e;motors[i]=pxToX(p.clientX-track.getBoundingClientRect().left);mo.style.left=xToPx(motors[i])+"px";e.preventDefault();pushMotors()};
+    mo.addEventListener("touchstart",drag,{passive:false});mo.addEventListener("touchmove",drag,{passive:false});
+    mo.addEventListener("mousedown",function(e){var mv=function(e){drag(e)};addEventListener("mousemove",mv);addEventListener("mouseup",function(){removeEventListener("mousemove",mv)},{once:true});drag(e)});
+    track.appendChild(mo)});
+  $("hang").disabled=false;$("hang").textContent="Yükleri as";$("tip").textContent="Motorları parmağınla truss üzerinde kaydır. "+lvl.motors+" motor, her biri "+lvl.cap+" kg.";
+  pushMotors();
+}
+var lastPush=0,pushT=null;
+function pushMotors(){clearTimeout(pushT);var now=Date.now();if(now-lastPush>80){lastPush=now;send("motors",motors.map(function(x){return Math.round(x*10)/10}))}else pushT=setTimeout(pushMotors,80)}
+$("hang").addEventListener("click",function(){if(locked||!lvl)return;locked=true;$("hang").disabled=true;$("hang").textContent="Asılıyor…";send("hang","")});
+function showLoads(R,ok){motors.forEach(function(x,i){var mo=$("m"+i);if(!mo||R[i]==null)return;var pct=Math.round(R[i]/lvl.cap*100);mo.className="motor pct "+(pct<0||pct>100?"bad":"ok");mo.innerHTML=(pct<0?"↑":pct+"%")+"<small>"+Math.round(R[i])+" kg</small>"})}
+
+/* ---------- feedback from the screen ---------- */
+function feedback(t,m){
+  if(typeof m==="string"&&(t==="level"||t==="ok"||t==="fail"||t==="end")){try{m=JSON.parse(m)}catch(e){}}
+  if(t==="queued"){$("stSub").textContent=m}
+  if(t==="level"){lvl=m;$("state").hidden=false;$("rig").hidden=false;$("st").firstChild.nodeValue="Sahne senin!";$("stSub").textContent=lvl.span+" m truss · "+lvl.loads.length+" yük";$("lvl").textContent=String(($("lvl").textContent|0)&&lvl?(+$("lvl").textContent):1);buildLevel();try{navigator.vibrate&&navigator.vibrate(150)}catch(e){}}
+  if(t==="ok"){score+=m.pts||0;$("sc").textContent=String(score);showLoads(m.R||[],true);$("tip").textContent="Sağlam! En yüklü motor %"+m.maxPct+" · +"+m.pts+" puan";$("lvl").textContent=String((+$("lvl").textContent)+1);try{navigator.vibrate&&navigator.vibrate([60,40,60])}catch(e){}}
+  if(t==="fail"){showLoads(m.R||[],false);$("tip").textContent="Çöktü: "+m.why;try{navigator.vibrate&&navigator.vibrate(400)}catch(e){}}
+  if(t==="retry"){locked=false;score=Math.max(0,score-30);$("sc").textContent=String(score);$("hang").disabled=false;$("hang").textContent="Tekrar as";motors.forEach(function(x,i){var mo=$("m"+i);if(mo){mo.className="motor";mo.innerHTML="M"+(i+1)+"<small>"+lvl.cap+" kg</small>"}})}
+  if(t==="end"){$("rig").hidden=true;$("bigT").textContent=m.score>=400?"Usta rigger!":"Oyun bitti";$("bigP").innerHTML="";var b=document.createElement("b");b.textContent=m.score+" puan"+(m.rank?" · bugün "+m.rank+". sırada":"");$("bigP").appendChild(b);$("big").hidden=false;
+    setTimeout(function(){$("big").hidden=true;$("state").hidden=true;$("join").hidden=false;$("go").disabled=false;$("go").textContent="Tekrar oyna";score=0;$("sc").textContent="0";$("lvl").textContent="1";lvl=null;if(conn){try{conn.close()}catch(e){}conn=null}},7000)}
+}
+var esRef=null;
+function listen(){var es=new EventSource(NTFY+topic+"-"+id+"/sse");es.onmessage=function(ev){try{var j=JSON.parse(ev.data);if(j.event==="message")feedback((j.tags||[])[0],j.message||"")}catch(e){}};es.onerror=function(){es.close();setTimeout(listen,2000)};esRef=es}
+})();
+</script>
+</body>
+</html>
