@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Dekor Yakala — Sahne</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;900&family=Figtree:wght@500;700&display=swap">
+<style>
+/* Layout: 16:9 LED wall. Stage canvas fills the screen; HUD top (player, score, time), right rail (queue + leaderboard), idle overlay with QR. Dark theatre, amber stage light. */
+:root{--bg:#07090D;--fg:#F2F0EA;--muted:#8E95A3;--accent:#F5B041;--good:#5BD38F;--bad:#FF5F5F;--panel:rgba(14,18,26,.82);
+  --f-big:"Big Shoulders Display","Arial Narrow",Impact,sans-serif;--f:"Figtree",-apple-system,"Segoe UI",Roboto,sans-serif}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;background:var(--bg);color:var(--fg);font-family:var(--f);overflow:hidden;cursor:none}
+canvas{position:absolute;inset:0;width:100%;height:100%}
+.hud{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:flex-start;padding:2vh 2vw;pointer-events:none}
+.who{font-family:var(--f-big);font-weight:900;font-size:6vh;line-height:1;text-transform:uppercase;letter-spacing:.02em}
+.who small{display:block;font-family:var(--f);font-size:2.2vh;font-weight:500;color:var(--muted);text-transform:none;letter-spacing:0;margin-top:.6vh}
+.num{font-family:var(--f-big);font-weight:900;font-size:9vh;line-height:.9;text-align:right;font-variant-numeric:tabular-nums}
+.num small{display:block;font-family:var(--f);font-size:2vh;font-weight:700;letter-spacing:.14em;color:var(--muted)}
+.num.t.low{color:var(--bad)}
+.rail{position:absolute;top:0;right:0;bottom:0;width:22vw;padding:14vh 2vw 2vh;display:flex;flex-direction:column;gap:3vh;pointer-events:none}
+.box{background:var(--panel);border:1px solid rgba(255,255,255,.08);border-radius:1.4vh;padding:1.6vh 1.8vh;backdrop-filter:blur(6px)}
+.box h3{margin:0 0 1vh;font-size:1.8vh;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.box ol{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:.8vh}
+.box li{display:flex;justify-content:space-between;gap:1vh;font-size:2.4vh;font-weight:700}
+.box li span{color:var(--muted);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.box li b{font-family:var(--f-big);font-size:3vh;font-variant-numeric:tabular-nums}
+.box li.me{color:var(--accent)}
+.box .empty{color:var(--muted);font-size:2vh}
+.idle{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:5vw;background:rgba(7,9,13,.55);transition:opacity .4s}
+.idle[hidden]{display:flex!important;opacity:0;pointer-events:none}
+.ready[hidden],.end[hidden]{display:none!important}
+.cta{text-align:center}
+.cta h1{margin:0;font-family:var(--f-big);font-weight:900;font-size:14vh;line-height:.9;text-transform:uppercase;color:var(--accent)}
+.cta p{margin:2vh 0 0;font-size:3.4vh;font-weight:700}
+.cta p small{display:block;font-size:2.2vh;color:var(--muted);font-weight:500;margin-top:1vh}
+.qr{background:#fff;padding:1.6vh;border-radius:2vh;width:34vh;height:34vh}
+.qr img{display:block;width:100%;height:100%}
+.brand{position:absolute;left:2vw;bottom:2vh;font-size:2vh;color:var(--muted);letter-spacing:.14em;text-transform:uppercase}
+.brand b{color:var(--fg)}
+[hidden]{display:none!important}
+.ready{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none}
+.ready div{font-family:var(--f-big);font-weight:900;font-size:30vh;line-height:1;color:var(--accent);text-shadow:0 0 6vh rgba(245,176,65,.5)}
+.end{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(7,9,13,.7)}
+.end h2{margin:0;font-family:var(--f-big);font-weight:900;font-size:16vh;line-height:.9;text-transform:uppercase}
+.end p{margin:1vh 0 0;font-size:4vh;font-weight:700}
+.end p span{color:var(--accent)}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div class="hud">
+  <div class="who" id="who">Sahne hazır<small id="whoSub">Telefonunla karekodu okut</small></div>
+  <div style="display:flex;gap:4vw"><div class="num"><span id="score">0</span><small>PUAN</small></div><div class="num t" id="timeBox"><span id="time">30</span><small>SANİYE</small></div></div>
+</div>
+<div class="rail">
+  <div class="box"><h3>Sırada</h3><ol id="queue"><li class="empty">Sıra boş</li></ol></div>
+  <div class="box"><h3>Günün en iyileri</h3><ol id="board"><li class="empty">Henüz skor yok</li></ol></div>
+</div>
+<div class="idle" id="idle">
+  <div class="cta"><h1>Dekor<br>Yakala</h1><p>Sahneyi sen yönet<small>Karekodu okut, 30 saniyede dekorları doğru yere indir.</small></p></div>
+  <div class="qr" id="qr"></div>
+</div>
+<div class="ready" id="ready" hidden><div id="readyN">3</div></div>
+<div class="end" id="end" hidden><h2 id="endT">Perde!</h2><p><span id="endWho"></span> · <span id="endScore"></span> puan</p></div>
+<div class="brand"><b>Gala Sahne</b> · Smart Kontrol</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+<script>
+(function(){
+"use strict";
+var NTFY="https://ntfy.sh/";
+var m=/[#&]k=([a-z0-9-]{6,64})/.exec(location.hash||"");
+var topic=m?m[1]:"galasahne-"+Math.random().toString(36).slice(2,10);
+if(!m)location.hash="k="+topic;
+var phoneUrl=location.href.replace(/[^\/]*$/,"")+"kumanda.html#k="+topic;
+try{var q=qrcode(0,"M");q.addData(phoneUrl);q.make();document.getElementById("qr").innerHTML=q.createImgTag(6,0)}catch(e){document.getElementById("qr").textContent=phoneUrl}
+
+/* ---------- game state ---------- */
+var $=function(id){return document.getElementById(id)};
+var cv=$("c"),ctx=cv.getContext("2d"),W=0,H=0;
+function resize(){W=cv.width=innerWidth*devicePixelRatio;H=cv.height=innerHeight*devicePixelRatio}
+addEventListener("resize",resize);resize();
+var game=null,queue=[],board=[],targetX=0.5,carX=0.5;
+var SLOTS=5,DUR=30;
+var KINDS=[{n:"Perde",c:"#B5322E",w:.12,h:.22},{n:"Işık köprüsü",c:"#8C8F96",w:.16,h:.06},{n:"Podyum",c:"#D29A3C",w:.14,h:.1},{n:"Ağaç",c:"#3E8E55",w:.08,h:.24},{n:"Sütun",c:"#D8D2C4",w:.06,h:.26}];
+function post(body){try{var x=new XMLHttpRequest();x.open("POST",NTFY,true);x.setRequestHeader("Content-Type","application/json");x.send(JSON.stringify(body))}catch(e){}}
+function tell(player,msg,tags){post({topic:topic+"-"+player.id,message:msg,title:"Sahne",tags:tags||["info"]})}
+
+function start(p){
+  game={p:p,score:0,t0:0,left:DUR,pieces:[],next:0,combo:0,phase:"ready",ready:3,readyAt:performance.now()};
+  $("who").firstChild.nodeValue=p.name;$("whoSub").textContent="Dekorları hedef kutulara indir";
+  $("score").textContent="0";$("time").textContent=String(DUR);$("timeBox").className="num t";
+  $("idle").hidden=true;$("end").hidden=true;$("ready").hidden=false;$("readyN").textContent="3";
+  tell(p,"start",["start"]);renderQueue();
+}
+function spawn(){
+  var k=KINDS[Math.floor(Math.random()*KINDS.length)],slot=Math.floor(Math.random()*SLOTS);
+  game.pieces.push({k:k,slot:slot,x:(slot+0.5)/SLOTS,y:-0.1,vy:0.00018+game.score*0.0000015,done:false});
+}
+function finish(){
+  game.phase="end";var p=game.p,s=game.score;
+  board.push({name:p.name,score:s});board.sort(function(a,b){return b.score-a.score});board=board.slice(0,8);
+  try{localStorage.setItem("dy.board",JSON.stringify(board))}catch(e){}
+  renderBoard();
+  var rank=board.findIndex(function(b){return b.name===p.name&&b.score===s})+1;
+  $("endT").textContent=s>=60?"Bravo!":"Perde!";$("endWho").textContent=p.name;$("endScore").textContent=String(s);$("end").hidden=false;
+  tell(p,"Skorun: "+s+" puan"+(rank?" · Bugün "+rank+". sıradasın":""),["end"]);
+  setTimeout(function(){$("end").hidden=true;game=null;nextPlayer()},5000);
+}
+function nextPlayer(){
+  if(game)return;
+  if(queue.length){start(queue.shift())}
+  else{$("idle").hidden=false;$("who").firstChild.nodeValue="Sahne hazır";$("whoSub").textContent="Telefonunla karekodu okut";renderQueue()}
+}
+function renderQueue(){
+  var ol=$("queue");ol.innerHTML="";
+  if(!queue.length){ol.innerHTML='<li class="empty">Sıra boş</li>';return}
+  queue.slice(0,5).forEach(function(p,i){var li=document.createElement("li");li.innerHTML="<span></span><b>"+(i+1)+"</b>";li.firstChild.textContent=p.name;ol.appendChild(li)});
+}
+function renderBoard(){
+  var ol=$("board");ol.innerHTML="";
+  if(!board.length){ol.innerHTML='<li class="empty">Henüz skor yok</li>';return}
+  board.slice(0,6).forEach(function(b){var li=document.createElement("li");if(game&&game.p.name===b.name)li.className="me";li.innerHTML="<span></span><b></b>";li.firstChild.textContent=b.name;li.lastChild.textContent=b.score;ol.appendChild(li)});
+}
+try{board=JSON.parse(localStorage.getItem("dy.board")||"[]")}catch(e){}
+renderBoard();
+
+/* ---------- drawing ---------- */
+function draw(now){
+  var dpr=devicePixelRatio,w=W,h=H;
+  ctx.clearRect(0,0,w,h);
+  /* stage floor + back wall */
+  var floorY=h*0.86,stageL=w*0.08,stageR=w*0.74;
+  var g=ctx.createLinearGradient(0,0,0,floorY);g.addColorStop(0,"#0B0F18");g.addColorStop(1,"#161C2A");ctx.fillStyle=g;ctx.fillRect(stageL,0,stageR-stageL,floorY);
+  ctx.fillStyle="#2A2118";ctx.fillRect(stageL,floorY,stageR-stageL,h-floorY);
+  ctx.fillStyle="#3B2F22";ctx.fillRect(stageL,floorY,stageR-stageL,h*0.012);
+  /* spotlight cone following the car */
+  carX+= (targetX-carX)*0.18;
+  var cx=stageL+(stageR-stageL)*carX;
+  var sp=ctx.createRadialGradient(cx,floorY,0,cx,floorY,h*0.5);sp.addColorStop(0,"rgba(245,176,65,.28)");sp.addColorStop(1,"rgba(245,176,65,0)");
+  ctx.fillStyle=sp;ctx.beginPath();ctx.moveTo(cx-w*0.03,0);ctx.lineTo(cx+w*0.03,0);ctx.lineTo(cx+w*0.16,floorY);ctx.lineTo(cx-w*0.16,floorY);ctx.closePath();ctx.fill();
+  /* target slots */
+  for(var i=0;i<SLOTS;i++){
+    var sx=stageL+(stageR-stageL)*(i+0.5)/SLOTS,sw=(stageR-stageL)/SLOTS*0.78;
+    ctx.strokeStyle="rgba(255,255,255,.14)";ctx.lineWidth=2*dpr;ctx.setLineDash([8*dpr,6*dpr]);ctx.strokeRect(sx-sw/2,floorY-h*0.3,sw,h*0.3);ctx.setLineDash([]);
+    ctx.fillStyle="rgba(255,255,255,.35)";ctx.font=(h*0.03)+"px "+getComputedStyle(document.body).fontFamily;ctx.textAlign="center";ctx.fillText(String(i+1),sx,floorY-h*0.31);
+  }
+  /* stage car (the thing Smart Kontrol would drive) */
+  var carW=(stageR-stageL)/SLOTS*0.84,carH=h*0.035;
+  ctx.fillStyle="#F5B041";ctx.fillRect(cx-carW/2,floorY-carH,carW,carH);
+  ctx.fillStyle="#1A1203";ctx.font="bold "+(h*0.022)+"px "+getComputedStyle(document.body).fontFamily;ctx.textAlign="center";ctx.fillText("ARABA",cx,floorY-carH*0.3);
+  /* catch zone glow */
+  ctx.fillStyle="rgba(245,176,65,.12)";ctx.fillRect(cx-carW/2,floorY-h*0.3,carW,h*0.3-carH);
+  if(!game)return;
+  if(game.phase==="ready"){
+    var el=(now-game.readyAt)/1000,n=3-Math.floor(el);
+    if(n<=0){game.phase="play";game.t0=now;$("ready").hidden=true;spawn()}else $("readyN").textContent=String(n);
+    return;
+  }
+  if(game.phase!=="play")return;
+  var elapsed=(now-game.t0)/1000;game.left=Math.max(0,DUR-elapsed);
+  $("time").textContent=String(Math.ceil(game.left));if(game.left<=5)$("timeBox").className="num t low";
+  if(game.left<=0){finish();return}
+  if(now-game.next>Math.max(900,2200-game.score*18)){spawn();game.next=now}
+  var dt=16;
+  game.pieces.forEach(function(p){
+    if(p.done)return;
+    p.y+=p.vy*dt*(h/1000)*1.4;
+    var px=stageL+(stageR-stageL)*p.x,pw=(stageR-stageL)*p.k.w,ph=h*p.k.h,bottom=p.y*h+ph/2;
+    if(bottom>=floorY-carH){
+      p.done=true;
+      var hit=Math.abs(px-cx)<carW/2;
+      if(hit){game.score+=10+game.combo*2;game.combo++;flash(px,floorY-carH,true);tell(game.p,"+"+(10+(game.combo-1)*2),["hit"])}
+      else{game.combo=0;game.score=Math.max(0,game.score-5);flash(px,floorY,false)}
+      $("score").textContent=String(game.score);return;
+    }
+    /* hanging from a fly bar: draw cable + piece */
+    ctx.strokeStyle="rgba(255,255,255,.35)";ctx.lineWidth=1.5*dpr;ctx.beginPath();ctx.moveTo(px,0);ctx.lineTo(px,p.y*h-ph/2);ctx.stroke();
+    ctx.fillStyle=p.k.c;ctx.fillRect(px-pw/2,p.y*h-ph/2,pw,ph);
+    ctx.fillStyle="rgba(0,0,0,.25)";ctx.fillRect(px-pw/2,p.y*h+ph/2-h*0.01,pw,h*0.01);
+    ctx.fillStyle="#fff";ctx.font="bold "+(h*0.02)+"px "+getComputedStyle(document.body).fontFamily;ctx.textAlign="center";ctx.fillText(p.k.n,px,p.y*h+ph/2+h*0.03);
+  });
+  game.pieces=game.pieces.filter(function(p){return !p.done});
+  flashes.forEach(function(f){var a=1-(now-f.t)/500;if(a<=0)return;ctx.fillStyle=(f.ok?"rgba(91,211,143,":"rgba(255,95,95,")+a*0.6+")";ctx.beginPath();ctx.arc(f.x,f.y,(1-a)*h*0.12+h*0.02,0,Math.PI*2);ctx.fill()});
+  flashes=flashes.filter(function(f){return now-f.t<500});
+}
+var flashes=[];function flash(x,y,ok){flashes.push({x:x,y:y,ok:ok,t:performance.now()})}
+function loop(now){draw(now);requestAnimationFrame(loop)}requestAnimationFrame(loop);
+
+/* ---------- phone link ---------- */
+var seen={};
+function handle(j){
+  if(!j||j.event!=="message"||seen[j.id])return;seen[j.id]=1;
+  if(Date.now()-(j.time||0)*1000>60000)return;
+  var tags=j.tags||[],msg=String(j.message||"");
+  if(tags.indexOf("join")>-1){
+    var p={id:j.title,name:msg.slice(0,16)||"Oyuncu"};
+    if(game&&game.p.id===p.id)return;
+    if(queue.some(function(q){return q.id===p.id}))return;
+    queue.push(p);renderQueue();
+    if(!game)nextPlayer();else tell(p,"Sıradasın: "+queue.length+". Yaklaşık "+(queue.length*40)+" saniye.",["queued"]);
+    return;
+  }
+  if(tags.indexOf("move")>-1&&game&&game.p.id===j.title){var v=parseFloat(msg);if(!isNaN(v))targetX=Math.max(0,Math.min(1,v))}
+}
+function listen(){
+  var es=new EventSource(NTFY+topic+"/sse?since=10s");
+  es.onmessage=function(ev){try{handle(JSON.parse(ev.data))}catch(e){}};
+  es.onerror=function(){es.close();setTimeout(listen,2000)};
+}
+listen();
+/* keyboard for demo on the booth PC */
+addEventListener("keydown",function(e){if(e.key==="ArrowLeft")targetX=Math.max(0,targetX-0.08);if(e.key==="ArrowRight")targetX=Math.min(1,targetX+0.08);if(e.key===" "&&!game){queue.push({id:"demo",name:"Demo"});nextPlayer()}});
+})();
+</script>
+</body>
+</html>
