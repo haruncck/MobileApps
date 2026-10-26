@@ -65,7 +65,7 @@ canvas{position:absolute;inset:0;width:100%;height:100%}
 </div>
 <div class="ready" id="ready" hidden><div id="readyN">3</div></div>
 <div class="end" id="end" hidden><h2 id="endT">Perde!</h2><p><span id="endWho"></span> · <span id="endScore"></span> puan</p></div>
-<div class="brand"><b>Gala Sahne</b> · Smart Kontrol</div>
+<div class="brand"><b>Gala Sahne</b> · Smart Kontrol · <span id="link">bağlantı bekleniyor</span></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js"></script>
@@ -139,7 +139,7 @@ function draw(now){
   ctx.fillStyle="#2A2118";ctx.fillRect(stageL,floorY,stageR-stageL,h-floorY);
   ctx.fillStyle="#3B2F22";ctx.fillRect(stageL,floorY,stageR-stageL,h*0.012);
   /* spotlight cone following the car */
-  carX+= (targetX-carX)*0.18;
+  carX+= (targetX-carX)*0.35;
   var cx=stageL+(stageR-stageL)*carX;
   var sp=ctx.createRadialGradient(cx,floorY,0,cx,floorY,h*0.5);sp.addColorStop(0,"rgba(245,176,65,.28)");sp.addColorStop(1,"rgba(245,176,65,0)");
   ctx.fillStyle=sp;ctx.beginPath();ctx.moveTo(cx-w*0.03,0);ctx.lineTo(cx+w*0.03,0);ctx.lineTo(cx+w*0.16,floorY);ctx.lineTo(cx-w*0.16,floorY);ctx.closePath();ctx.fill();
@@ -208,22 +208,23 @@ function onJoin(id,name){
 function onMove(id,v){if(game&&game.p.id===id){v=parseFloat(v);if(!isNaN(v))targetX=Math.max(0,Math.min(1,v))}}
 var peer=null;
 function startPeer(){
-  try{peer=new Peer("gs-"+topic,{debug:0})}catch(e){return}
+  try{peer=new Peer("gs-"+topic,{debug:0,config:{iceServers:[{urls:"stun:stun.l.google.com:19302"},{urls:"stun:stun1.l.google.com:19302"}]}})}catch(e){return}
   peer.on("connection",function(c){
-    c.on("data",function(d){if(!d)return;if(d.t==="join"){conns[c.peer]=c;onJoin(c.peer,d.m)}else if(d.t==="move")onMove(c.peer,d.m)});
+    c.on("data",function(d){if(!d)return;if(d.t==="join"){conns[c.peer]=c;onJoin(c.peer,d.m);setLink("doğrudan")}else if(d.t==="move"){onMove(c.peer,d.m);if(d.s){lat=Date.now()-d.s;setLink("doğrudan · "+Math.max(0,lat)+" ms")}}else if(d.t==="ping"){try{c.send({t:"pong",m:d.m})}catch(e){}}});
     c.on("close",function(){delete conns[c.peer]});
   });
   peer.on("error",function(e){if(e&&e.type==="unavailable-id"){setTimeout(startPeer,3000)}});
   peer.on("disconnected",function(){try{peer.reconnect()}catch(e){}});
 }
 startPeer();
+var lat=0;function setLink(t){document.getElementById("link").textContent=t}
 var seen={};
 function handle(j){
   if(!j||j.event!=="message"||seen[j.id])return;seen[j.id]=1;
   if(Date.now()-(j.time||0)*1000>60000)return;
   var tags=j.tags||[],msg=String(j.message||"");
-  if(tags.indexOf("join")>-1)onJoin(j.title,msg);
-  else if(tags.indexOf("move")>-1)onMove(j.title,msg);
+  if(tags.indexOf("join")>-1){onJoin(j.title,msg);setLink("internet üzerinden (yavaş)")}
+  else if(tags.indexOf("move")>-1){onMove(j.title,msg);setLink("internet üzerinden · "+Math.max(0,Date.now()-(j.time||0)*1000)+" ms")}
 }
 function listen(){
   var es=new EventSource(NTFY+topic+"/sse?since=10s");
