@@ -48,7 +48,7 @@ input{width:100%;min-height:54px;padding:0 14px;border:1px solid #2A3242;border-
 </head>
 <body>
 <div class="app">
-  <div><h1>Asın, Çökmesin</h1><div class="sub">Gala Sahne · Rigging</div></div>
+  <div><h1>Asın, Çökmesin</h1><div class="sub">Gala Sahne · Rigging düellosu</div></div>
   <div class="card" id="join">
     <label for="name" style="color:var(--muted);font-size:14px">Adın (skor tablosunda görünür)</label>
     <input id="name" maxlength="16" placeholder="Ör. Harun" autocomplete="off">
@@ -57,7 +57,7 @@ input{width:100%;min-height:54px;padding:0 14px;border:1px solid #2A3242;border-
   <div class="card" id="state" hidden>
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
       <div class="status" id="st">Sıradasın<small id="stSub">Sahne ekranına bak</small></div>
-      <div class="nums"><div><span id="lvl">1</span><small>TUR</small></div><div><span id="sc">0</span><small>PUAN</small></div></div>
+      <div class="nums"><div><span id="lvl">0</span><small>TUR</small></div><div><span id="sc">0</span><small>PUAN</small></div></div>
     </div>
   </div>
   <div class="rig" id="rig" hidden>
@@ -122,12 +122,15 @@ function showLoads(R,ok){motors.forEach(function(x,i){var mo=$("m"+i);if(!mo||R[
 function feedback(t,m){
   if(typeof m==="string"&&(t==="level"||t==="ok"||t==="fail"||t==="end")){try{m=JSON.parse(m)}catch(e){}}
   if(t==="queued"){$("stSub").textContent=m}
-  if(t==="level"){lvl=m;$("state").hidden=false;$("rig").hidden=false;$("st").firstChild.nodeValue="Sahne senin!";$("stSub").textContent=lvl.span+" m truss · "+lvl.loads.length+" yük";$("lvl").textContent=String(($("lvl").textContent|0)&&lvl?(+$("lvl").textContent):1);buildLevel();try{navigator.vibrate&&navigator.vibrate(150)}catch(e){}}
-  if(t==="ok"){score+=m.pts||0;$("sc").textContent=String(score);showLoads(m.R||[],true);$("tip").textContent="Sağlam! En yüklü motor %"+m.maxPct+" · +"+m.pts+" puan";$("lvl").textContent=String((+$("lvl").textContent)+1);try{navigator.vibrate&&navigator.vibrate([60,40,60])}catch(e){}}
+  if(t==="hurry"){$("tip").textContent="⚡ "+m;try{navigator.vibrate&&navigator.vibrate([80,40,80,40,80])}catch(e){}}
+  if(t==="rivalfail"){$("tip").textContent="😅 "+m+" Sakin ol, doğru yere koy."}
+  if(t==="round"){locked=true;$("hang").disabled=true;$("hang").textContent=m.won?"Turu aldın!":"Tur bitti";$("stSub").textContent=m.txt;score=m.score;$("sc").textContent=String(score)}
+  if(t==="level"){lvl=m;$("state").hidden=false;$("rig").hidden=false;$("st").firstChild.nodeValue="Düello!";$("stSub").textContent=lvl.span+" m truss · "+lvl.loads.length+" yük · rakipten önce as";$("lvl").textContent=String((+$("lvl").textContent||0)+1);buildLevel();try{navigator.vibrate&&navigator.vibrate(150)}catch(e){}}
+  if(t==="ok"){score+=m.pts||0;$("sc").textContent=String(score);showLoads(m.R||[],true);$("tip").textContent=(m.first?"İlk sen astın! ":"Sağlam. ")+"En yüklü motor %"+m.maxPct+" · +"+m.pts+" puan";$("hang").textContent=m.first?"Turu aldın!":"Asıldı";try{navigator.vibrate&&navigator.vibrate([60,40,60])}catch(e){}}
   if(t==="fail"){showLoads(m.R||[],false);$("tip").textContent="Çöktü: "+m.why;try{navigator.vibrate&&navigator.vibrate(400)}catch(e){}}
   if(t==="retry"){locked=false;score=Math.max(0,score-30);$("sc").textContent=String(score);$("hang").disabled=false;$("hang").textContent="Tekrar as";motors.forEach(function(x,i){var mo=$("m"+i);if(mo){mo.className="motor";mo.innerHTML="M"+(i+1)+"<small>"+lvl.cap+" kg</small>"}})}
-  if(t==="end"){$("rig").hidden=true;$("bigT").textContent=m.score>=400?"Usta rigger!":"Oyun bitti";$("bigP").innerHTML="";var b=document.createElement("b");b.textContent=m.score+" puan"+(m.rank?" · bugün "+m.rank+". sırada":"");$("bigP").appendChild(b);$("big").hidden=false;
-    setTimeout(function(){$("big").hidden=true;$("state").hidden=true;$("join").hidden=false;$("go").disabled=false;$("go").textContent="Tekrar oyna";score=0;$("sc").textContent="0";$("lvl").textContent="1";lvl=null;if(conn){try{conn.close()}catch(e){}conn=null}},7000)}
+  if(t==="end"){$("rig").hidden=true;$("bigT").textContent=m.draw?"Berabere":(m.won?"Kazandın!":"Kaybettin");$("bigT").className=m.won||m.draw?"":"bad";$("bigP").innerHTML="";var b=document.createElement("b");b.textContent=m.score+" puan"+(m.rival?" · "+m.rival+" "+m.rivalScore:"");$("bigP").appendChild(b);$("bigP").appendChild(document.createTextNode(m.won?" · Standa gel, ödülünü al.":" · Rövanş için tekrar sıraya gir."));$("big").hidden=false;
+    setTimeout(function(){$("big").hidden=true;$("state").hidden=true;$("join").hidden=false;$("go").disabled=false;$("go").textContent="Tekrar oyna";score=0;$("sc").textContent="0";$("lvl").textContent="0";lvl=null;if(conn){try{conn.close()}catch(e){}conn=null}},7000)}
 }
 var esRef=null;
 function listen(){var es=new EventSource(NTFY+topic+"-"+id+"/sse");es.onmessage=function(ev){try{var j=JSON.parse(ev.data);if(j.event==="message")feedback((j.tags||[])[0],j.message||"")}catch(e){}};es.onerror=function(){es.close();setTimeout(listen,2000)};esRef=es}

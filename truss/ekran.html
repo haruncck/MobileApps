@@ -47,25 +47,53 @@ canvas{position:absolute;inset:0;width:100%;height:100%}
 .end p span{color:var(--accent)}
 .end[hidden]{display:none!important}
 .flash{position:absolute;inset:0;background:var(--bad);opacity:0;pointer-events:none}
+.duel{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;padding:1.6vh 2vw;pointer-events:none}
+.pl{width:36vw}
+.pl.r{text-align:right}
+.pl .nm{font-family:var(--f-big);font-weight:900;font-size:5.6vh;line-height:1;text-transform:uppercase}
+.pl .sc{font-family:var(--f-big);font-weight:900;font-size:7vh;line-height:.9;color:var(--accent);font-variant-numeric:tabular-nums}
+.pl .sc small{font-family:var(--f);font-size:1.8vh;font-weight:700;letter-spacing:.12em;color:var(--muted);margin-left:.6vw}
+.pl .wins{font-size:2.4vh;letter-spacing:.3vw;color:var(--accent)}
+.mid{text-align:center}
+.mid .t{font-family:var(--f-big);font-weight:900;font-size:9vh;line-height:.9;font-variant-numeric:tabular-nums}
+.mid .t.low{color:var(--bad)}
+.mid small{display:block;font-size:1.9vh;font-weight:700;letter-spacing:.14em;color:var(--muted)}
+.vs{position:absolute;left:50%;top:14vh;bottom:0;width:2px;transform:translateX(-50%);background:linear-gradient(rgba(245,176,65,.0),rgba(245,176,65,.6),rgba(245,176,65,.0));pointer-events:none}
+.wait{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:5vw;background:rgba(7,9,13,.6)}
+.wait .cta h1{font-size:11vh}
+.wait[hidden]{display:none!important}
+.round{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none;text-align:center}
+.round h2{margin:0;font-family:var(--f-big);font-weight:900;font-size:18vh;line-height:.9;text-transform:uppercase;color:var(--accent);text-shadow:0 0 6vh rgba(245,176,65,.5)}
+.round p{margin:1vh 0 0;font-size:3.6vh;font-weight:700}
+.round[hidden]{display:none!important}
 </style>
 </head>
 <body>
 <canvas id="c"></canvas>
 <div class="flash" id="flash"></div>
-<div class="hud">
-  <div class="who" id="who">Sahne hazır<small id="whoSub">Telefonunla karekodu okut</small></div>
-  <div class="nums"><div class="num"><span id="lvl">1</span><small>TUR</small></div><div class="num"><span id="score">0</span><small>PUAN</small></div><div class="num"><span id="time">60</span><small>SANİYE</small></div></div>
+<div class="duel">
+  <div class="pl"><div class="nm" id="nmA">—</div><div class="sc"><span id="scA">0</span><small>PUAN</small></div><div class="wins" id="wA"></div></div>
+  <div class="mid"><div class="t" id="time">60</div><small id="lvlTxt">TUR 1 / 3</small></div>
+  <div class="pl r"><div class="nm" id="nmB">—</div><div class="sc"><span id="scB">0</span><small>PUAN</small></div><div class="wins" id="wB"></div></div>
 </div>
-<div class="rail">
-  <div class="box"><h3>Görev</h3><div class="task" id="task">Motorları yerleştir, yükleri as, hiçbir motor <b>%100</b>'ü geçmesin.</div></div>
+<div class="vs" id="vs" hidden></div>
+<div class="who" id="who" hidden><small id="whoSub"></small></div>
+<span id="lvl" hidden>1</span><span id="score" hidden>0</span>
+<div class="rail" style="top:14vh;padding-top:0;width:18vw;right:0;left:auto;display:none">
+  <div class="box"><h3>Görev</h3><div class="task" id="task"></div></div>
   <div class="box"><h3>Sırada</h3><ol id="queue"><li class="empty">Sıra boş</li></ol></div>
   <div class="box"><h3>Günün en iyileri</h3><ol id="board"><li class="empty">Henüz skor yok</li></ol></div>
 </div>
 <div class="idle" id="idle">
-  <div class="cta"><h1>Asın,<br>Çökmesin</h1><p>Truss'ı sen as<small>Motorları doğru yere koy, ışık ve ses yüklerini as. Yanlış plan: truss çöker.</small></p></div>
+  <div class="cta"><h1>Asın,<br>Çökmesin</h1><p>Rigging düellosu<small>İki kişi, aynı truss, aynı yükler. Kim önce sağlam asarsa tur onun. 3 turda kazanan belli olur.</small></p></div>
   <div class="qr" id="qr"></div>
 </div>
-<div class="end" id="end" hidden><h2 id="endT">Tur tamam</h2><p id="endP"></p></div>
+<div class="wait" id="wait" hidden>
+  <div class="cta"><h1 id="waitT">Rakip bekleniyor</h1><p id="waitP"></p><p><small>Karekodu okutan ikinci kişi rakip olur. 20 saniyede kimse gelmezse süreye karşı oynarsın.</small></p></div>
+  <div class="qr" id="qr2"></div>
+</div>
+<div class="round" id="round" hidden><h2 id="roundT">Tur 1</h2><p id="roundP"></p></div>
+<div class="end" id="end" hidden><h2 id="endT">Tur tamam</h2><p id="endP"></p><p id="endP2" style="color:var(--muted);font-size:2.6vh"></p></div>
 <div class="brand"><b>Gala Sahne</b> · Rigging · <span id="link">bağlantı bekleniyor</span></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
@@ -82,7 +110,7 @@ try{var q=qrcode(0,"M");q.addData(phoneUrl);q.make();$("qr").innerHTML=q.createI
 
 /* ---------- levels: span (m), motor capacity (kg), motor count allowed, loads [{name,kg,x(m)}] ---------- */
 var LEVELS=[
- {span:8, cap:250, motors:2, loads:[{n:"Işık barı",kg:120,x:2},{n:"Işık barı",kg:120,x:6}],tip:"Tur 1: 8 m truss, 2 motor. Motorları yüklerin yakınına koy."},
+ {span:8, cap:250, motors:2, loads:[{n:"Işık barı",kg:120,x:2},{n:"Işık barı",kg:120,x:6}],tip:"Tur 1: 8 m truss, 2 motor. Kim önce sağlam asarsa 150 puan."},
  {span:10,cap:250, motors:3, loads:[{n:"LED panel",kg:220,x:5},{n:"Hoparlör",kg:90,x:1},{n:"Hoparlör",kg:90,x:9}],tip:"Tur 2: Ağır LED ortada, hoparlörler uçta. 3 motor var."},
  {span:12,cap:250, motors:3, loads:[{n:"LED panel",kg:260,x:3},{n:"Işık barı",kg:140,x:7},{n:"Işık barı",kg:140,x:10.5}],tip:"Tur 3: Asimetrik yük. Motorları eşit aralıkla koymak yetmez."},
  {span:12,cap:320, motors:2, loads:[{n:"LED panel",kg:200,x:4},{n:"Hoparlör",kg:110,x:11},{n:"Işık barı",kg:120,x:8}],tip:"Tur 4: Sadece 2 motor. Konsol (dışa taşan) uç ne kadar olabilir?"}
@@ -107,58 +135,75 @@ function solve(L,motors,loads){
   var worst=0,segs=[];
   segs.push({len:ms[0],kind:"ov"});segs.push({len:L-ms[n-1],kind:"ov"});
   for(var k=0;k<n-1;k++)segs.push({len:ms[k+1]-ms[k],kind:"in"});
-  segs.forEach(function(s){var w=0;all.forEach(function(l){w+=l.kg});var ratio=s.kind==="ov"?s.len/(L*0.3):s.len/(L*0.75);worst=Math.max(worst,ratio*ratio*(0.6+0.4*w/(400)))});
+  segs.forEach(function(s){var w=0;all.forEach(function(l){w+=l.kg});var ratio=s.kind==="ov"?s.len/(L*0.36):s.len/(L*0.8);worst=Math.max(worst,ratio*ratio*(0.6+0.4*w/(400)))});
   var neg=R.some(function(r){return r<-1}),maxPct=0;R.forEach(function(r,i){maxPct=Math.max(maxPct,r/Number(cur.cap)*100)});
   var fail=null;
   if(neg)fail="bir motor kalkıyor (negatif yük): truss devrilir";
   else if(maxPct>100)fail="motor kapasitesi aşıldı: %"+Math.round(maxPct);
-  else if(worst>1.15)fail="açıklık çok uzun: truss aşırı bükülüyor";
+  else if(worst>1.15)fail="uç ya da orta açıklık çok uzun: truss aşırı bükülüyor";
   return {R:R,ok:!fail,fail:fail,maxPct:maxPct,defl:Math.min(1.4,worst)};
 }
 
-/* ---------- state ---------- */
+/* ---------- state (duel) ---------- */
 var cv=$("c"),ctx=cv.getContext("2d"),W=0,H=0;
 function resize(){W=cv.width=innerWidth*devicePixelRatio;H=cv.height=innerHeight*devicePixelRatio}
 addEventListener("resize",resize);resize();
-var game=null,queue=[],board=[],cur=LEVELS[0];
-var view={motors:[],hung:0,shake:0,collapse:0,res:null};
+var ROUNDS=3,ROUND_DUR=45,WAIT_FOR_RIVAL=20;
+var queue=[],board=[],cur=LEVELS[0],match=null,waitTimer=null;
 function post(body){try{var x=new XMLHttpRequest();x.open("POST",NTFY,true);x.setRequestHeader("Content-Type","application/json");x.send(JSON.stringify(body))}catch(e){}}
 var conns={};
 function tell(p,t,m){var c=conns[p.id];if(c&&c.open){try{c.send({t:t,m:m})}catch(e){}}else post({topic:topic+"-"+p.id,message:typeof m==="string"?m:JSON.stringify(m),title:"Sahne",tags:[t]})}
-
+function freshView(){return {motors:[],hung:0,shake:0,collapse:0,collapseAt:0,res:null,done:false,fails:0}}
 function levelPayload(){return {span:cur.span,cap:cur.cap,motors:cur.motors,loads:cur.loads.map(function(l){return {n:l.n,kg:l.kg,x:l.x}})}}
-function start(p){
-  game={p:p,score:0,level:0,t0:performance.now(),hung:0,done:false};
-  cur=LEVELS[0];view={motors:[],hung:0,shake:0,collapse:0,res:null};
-  $("who").firstChild.nodeValue=p.name;$("whoSub").textContent=cur.tip;$("lvl").textContent="1";$("score").textContent="0";$("time").textContent=String(DUR);
-  $("task").innerHTML="Motorları yerleştir, yükleri as, hiçbir motor <b>%100</b>'ü geçmesin.";
-  $("idle").hidden=true;$("end").hidden=true;
-  tell(p,"level",levelPayload());renderQueue();
+try{var qq=qrcode(0,"M");qq.addData(phoneUrl);qq.make();$("qr2").innerHTML=qq.createImgTag(6,0)}catch(e){}
+
+function side(id){if(!match)return -1;return match.p[0].id===id?0:(match.p[1]&&match.p[1].id===id)?1:-1}
+function beginMatch(pA,pB){
+  clearTimeout(waitTimer);
+  match={p:[pA,pB],score:[0,0],wins:[0,0],round:0,v:[freshView(),freshView()],t0:0,phase:"round",roundWinner:-1};
+  $("nmA").textContent=pA.name;$("nmB").textContent=pB?pB.name:"SÜRE";$("scA").textContent="0";$("scB").textContent=pB?"0":"—";$("wA").textContent="";$("wB").textContent="";
+  $("idle").hidden=true;$("wait").hidden=true;$("end").hidden=true;$("vs").hidden=false;
+  startRound();
 }
-function nextLevel(){
-  game.level++;
-  if(game.level>=LEVELS.length){finish(true);return}
-  cur=LEVELS[game.level];view={motors:[],hung:0,shake:0,collapse:0,res:null};game.t0=performance.now();
-  $("lvl").textContent=String(game.level+1);$("whoSub").textContent=cur.tip;$("time").textContent=String(DUR);
-  tell(game.p,"level",levelPayload());
+function startRound(){
+  var r=match.round;cur=LEVELS[r%LEVELS.length];match.v=[freshView(),freshView()];match.phase="intro";match.roundWinner=-1;
+  $("lvlTxt").textContent="TUR "+(r+1)+" / "+ROUNDS;$("time").textContent=String(ROUND_DUR);$("time").className="t";
+  $("roundT").textContent="Tur "+(r+1);$("roundP").textContent=cur.tip.replace(/^Tur \d+: /,"");$("round").hidden=false;
+  setTimeout(function(){$("round").hidden=true;match.phase="play";match.t0=performance.now();match.p.forEach(function(p){if(p)tell(p,"level",levelPayload())})},2600);
 }
-function finish(all){
-  if(!game||game.done)return;game.done=true;
-  var p=game.p,s=game.score;
-  board.push({name:p.name,score:s});board.sort(function(a,b){return b.score-a.score});board=board.slice(0,8);
-  try{localStorage.setItem("tr.board",JSON.stringify(board))}catch(e){}
+function endRound(reason){
+  if(!match||match.phase!=="play")return;match.phase="between";
+  var w=match.roundWinner;
+  var txt=w<0?"Bu turda kimse asamadı":(match.p[w].name+" turu aldı");
+  if(w>=0){match.wins[w]++;$("wA").textContent=Array(match.wins[0]+1).join("●");$("wB").textContent=Array(match.wins[1]+1).join("●")}
+  $("roundT").textContent=w<0?"Berabere":"Tur "+(match.round+1)+" "+(w===0?"sol":"sağ");$("roundT").textContent=w<0?"Çöktü!":match.p[w].name;$("roundP").textContent=txt+(reason?" · "+reason:"");$("round").hidden=false;
+  match.p.forEach(function(p,i){if(p)tell(p,"round",{won:i===w,txt:txt,score:match.score[i]})});
+  setTimeout(function(){$("round").hidden=true;match.round++;if(match.round>=ROUNDS||match.wins[0]===2||match.wins[1]===2)finishMatch();else startRound()},3000);
+}
+function finishMatch(){
+  var w=match.wins[0]===match.wins[1]?(match.score[0]===match.score[1]?-1:(match.score[0]>match.score[1]?0:1)):(match.wins[0]>match.wins[1]?0:1);
+  match.p.forEach(function(p,i){if(!p)return;board.push({name:p.name,score:match.score[i]})});
+  board.sort(function(a,b){return b.score-a.score});board=board.slice(0,8);try{localStorage.setItem("tr.board",JSON.stringify(board))}catch(e){}
   renderBoard();
-  var rank=board.findIndex(function(b){return b.name===p.name&&b.score===s})+1;
-  $("endT").textContent=all?"Usta rigger!":"Oyun bitti";$("endT").className="";
-  $("endP").innerHTML="";var sp=document.createElement("span");sp.textContent=p.name;$("endP").appendChild(sp);$("endP").appendChild(document.createTextNode(" · "+s+" puan"+(rank?" · bugün "+rank+". sırada":"")));
+  var pb=match.p[1];
+  $("endT").textContent=w<0?"Berabere!":(match.p[w].name+" kazandı!");$("endT").className="";
+  $("endP").textContent=match.p[0].name+" "+match.score[0]+" · "+(pb?pb.name+" "+match.score[1]:"süreye karşı");
+  $("endP2").textContent=w>=0&&pb?"Kaybeden: "+match.p[1-w].name+" · standa gel, rövanş hakkın var":"";
   $("end").hidden=false;
-  tell(p,"end",{score:s,rank:rank,levels:game.level+(all?0:0)});
-  setTimeout(function(){$("end").hidden=true;game=null;nextPlayer()},6000);
+  match.p.forEach(function(p,i){if(p)tell(p,"end",{won:i===w,draw:w<0,score:match.score[i],rival:pb?match.p[1-i].name:"",rivalScore:pb?match.score[1-i]:0})});
+  var m=match;match=null;
+  setTimeout(function(){$("end").hidden=true;$("vs").hidden=true;nextPlayers()},7000);
 }
-function nextPlayer(){
-  if(game)return;
-  if(queue.length)start(queue.shift());
-  else{$("idle").hidden=false;$("who").firstChild.nodeValue="Sahne hazır";$("whoSub").textContent="Telefonunla karekodu okut";view={motors:[],hung:0,shake:0,collapse:0,res:null};cur=LEVELS[0];renderQueue()}
+function nextPlayers(){
+  if(match)return;
+  if(queue.length>=2){beginMatch(queue.shift(),queue.shift());return}
+  if(queue.length===1){
+    var p=queue[0];$("idle").hidden=true;$("waitT").textContent="Rakip bekleniyor";$("waitP").textContent=p.name+" hazır";$("wait").hidden=false;
+    tell(p,"queued","Rakip bekleniyor… 20 saniyede kimse gelmezse süreye karşı oynarsın.");
+    clearTimeout(waitTimer);waitTimer=setTimeout(function(){if(queue.length===1&&!match){var a=queue.shift();beginMatch(a,null)}},WAIT_FOR_RIVAL*1000);
+    return;
+  }
+  $("idle").hidden=false;$("wait").hidden=true;cur=LEVELS[0];renderQueue();
 }
 function renderQueue(){var ol=$("queue");ol.innerHTML="";if(!queue.length){ol.innerHTML='<li class="empty">Sıra boş</li>';return}
   queue.slice(0,5).forEach(function(p,i){var li=document.createElement("li");li.innerHTML="<span></span><b>"+(i+1)+"</b>";li.firstChild.textContent=p.name;ol.appendChild(li)})}
@@ -168,98 +213,96 @@ try{board=JSON.parse(localStorage.getItem("tr.board")||"[]")}catch(e){}
 renderBoard();
 
 /* ---------- player actions ---------- */
-function onMotors(p,arr){
-  if(!game||game.p.id!==p)return;
-  view.motors=(arr||[]).map(Number).filter(function(x){return !isNaN(x)}).slice(0,cur.motors).map(function(x){return Math.max(0,Math.min(cur.span,x))});
-  view.res=null;view.hung=0;
+function onMotors(pid,arr){
+  var i=side(pid);if(i<0||!match||match.phase!=="play")return;var v=match.v[i];if(v.done)return;
+  v.motors=(arr||[]).map(Number).filter(function(x){return !isNaN(x)}).slice(0,cur.motors).map(function(x){return Math.max(0,Math.min(cur.span,x))});
+  v.res=null;v.hung=0;
 }
-function onHang(p){
-  if(!game||game.p.id!==p||view.collapse)return;
-  var r=solve(cur.span,view.motors,cur.loads);view.res=r;view.hung=1;
+function onHang(pid){
+  var i=side(pid);if(i<0||!match||match.phase!=="play")return;var v=match.v[i];if(v.done||v.collapse)return;
+  var r=solve(cur.span,v.motors,cur.loads);v.res=r;v.hung=1;var p=match.p[i];
   if(r.ok){
-    var elapsed=(performance.now()-game.t0)/1000,bonus=Math.max(0,Math.round((DUR-elapsed)*2)),eff=Math.round(Math.max(0,100-r.maxPct)),pts=100+bonus+eff;
-    game.score+=pts;$("score").textContent=String(game.score);
-    $("task").innerHTML="<b>Sağlam!</b> En yüklü motor %"+Math.round(r.maxPct)+". +"+pts+" puan.";
-    tell(game.p,"ok",{pts:pts,maxPct:Math.round(r.maxPct),R:r.R.map(Math.round)});
-    setTimeout(nextLevel,2600);
+    v.done=true;
+    var elapsed=(performance.now()-match.t0)/1000,first=match.roundWinner<0;
+    var pts=(first?150:60)+Math.max(0,Math.round((ROUND_DUR-elapsed)*2))+Math.round(Math.max(0,100-r.maxPct))-v.fails*20;
+    pts=Math.max(10,pts);match.score[i]+=pts;$(i?"scB":"scA").textContent=String(match.score[i]);
+    if(first)match.roundWinner=i;
+    tell(p,"ok",{pts:pts,maxPct:Math.round(r.maxPct),R:r.R.map(Math.round),first:first});
+    var other=match.p[1-i];
+    if(!other||match.v[1-i].done)endRound(first?"":"");
+    else if(first){tell(other,"hurry","Rakibin astı! Hâlâ puan alabilirsin, acele et.");}
   }else{
-    view.collapse=1;view.shake=1;$("flash").style.opacity=.5;setTimeout(function(){$("flash").style.opacity=0},180);
-    $("task").innerHTML="<b>Çöktü.</b> "+r.fail+".";
-    tell(game.p,"fail",{why:r.fail,R:r.R.map(Math.round)});
-    setTimeout(function(){view={motors:view.motors,hung:0,shake:0,collapse:0,res:null};game.score=Math.max(0,game.score-30);$("score").textContent=String(game.score);$("task").innerHTML="Tekrar dene: motorları taşı ve yeniden as. (−30)";tell(game.p,"retry","")},2600);
+    v.collapse=1;v.shake=1;v.collapseAt=performance.now();v.fails++;$("flash").style.opacity=.4;setTimeout(function(){$("flash").style.opacity=0},160);
+    tell(p,"fail",{why:r.fail,R:r.R.map(Math.round)});
+    var other2=match.p[1-i];if(other2)tell(other2,"rivalfail",p.name+" çöktü!");
+    setTimeout(function(){if(!match)return;var vv=match.v[i];if(vv!==v)return;v.hung=0;v.shake=0;v.collapse=0;v.res=null;tell(p,"retry","")},2200);
   }
 }
 
-/* ---------- drawing ---------- */
-function draw(now){
-  var w=W,h=H,dpr=devicePixelRatio;
-  ctx.clearRect(0,0,w,h);
-  var g=ctx.createLinearGradient(0,0,0,h);g.addColorStop(0,"#0A0E18");g.addColorStop(1,"#161C2A");ctx.fillStyle=g;ctx.fillRect(0,0,w*0.76,h);
-  ctx.fillStyle="#2A2118";ctx.fillRect(0,h*0.88,w*0.76,h*0.12);
-  var L=cur.span,x0=w*0.08,x1=w*0.70,sc=(x1-x0)/L,yT=h*0.42,font=getComputedStyle(document.body).fontFamily;
-  /* grid rail (roof beam) */
-  ctx.fillStyle="#3A4150";ctx.fillRect(x0-w*0.02,h*0.12,(x1-x0)+w*0.04,h*0.018);
-  /* scale */
-  ctx.fillStyle="rgba(255,255,255,.3)";ctx.font=(h*0.022)+"px "+font;ctx.textAlign="center";
-  for(var i=0;i<=L;i++){ctx.fillRect(x0+i*sc,h*0.14,1.5*dpr,h*0.012);if(i%2===0)ctx.fillText(i+" m",x0+i*sc,h*0.175)}
-  /* time */
-  if(game&&!game.done){var left=Math.max(0,DUR-(performance.now()-game.t0)/1000);$("time").textContent=String(Math.ceil(left));if(left<=0&&!view.collapse){finish(false)}}
-  /* deflection shape */
-  var res=view.res,ms=view.motors.slice().sort(function(a,b){return a-b});
-  var shakeX=view.shake?Math.sin(now/25)*h*0.006*view.shake:0;if(view.shake>0)view.shake=Math.max(0,view.shake-0.012);
-  function sag(xm){ /* displayed vertical offset at xm (m) */
-    if(!view.hung||!res)return 0;
-    var amp=h*0.09*Math.min(1.4,res.defl);
-    if(view.collapse){var t=Math.min(1,(now-collapseAt)/900);return amp*2*t+ (ms.length?Math.abs(xm-(ms[0]+ms[ms.length-1])/2)*sc*0.12*t:h*0.2*t)}
+/* ---------- drawing: two half-stages ---------- */
+function drawStage(ox,ow,v,label,now){
+  var w=W,h=H,dpr=devicePixelRatio,L=cur.span,x0=ox+ow*0.08,x1=ox+ow*0.92,sc=(x1-x0)/L,yT=h*0.5,font=getComputedStyle(document.body).fontFamily;
+  var g=ctx.createLinearGradient(0,0,0,h);g.addColorStop(0,"#0A0E18");g.addColorStop(1,"#161C2A");ctx.fillStyle=g;ctx.fillRect(ox,0,ow,h);
+  ctx.fillStyle="#2A2118";ctx.fillRect(ox,h*0.9,ow,h*0.1);
+  ctx.fillStyle="#3A4150";ctx.fillRect(x0-ow*0.03,h*0.2,(x1-x0)+ow*0.06,h*0.016);
+  ctx.fillStyle="rgba(255,255,255,.3)";ctx.font=(h*0.02)+"px "+font;ctx.textAlign="center";
+  for(var i=0;i<=L;i++){ctx.fillRect(x0+i*sc,h*0.216,1.5*dpr,h*0.01);if(i%2===0)ctx.fillText(i+" m",x0+i*sc,h*0.25)}
+  var res=v.res,ms=v.motors.slice().sort(function(a,b){return a-b});
+  var shakeX=v.shake?Math.sin(now/25)*h*0.006*v.shake:0;if(v.shake>0)v.shake=Math.max(0,v.shake-0.012);
+  function sag(xm){
+    if(!v.hung||!res)return 0;var amp=h*0.07*Math.min(1.4,res.defl);
+    if(v.collapse){var t=Math.min(1,(now-v.collapseAt)/900);return amp*2*t+(ms.length?Math.abs(xm-(ms[0]+ms[ms.length-1])/2)*sc*0.12*t:h*0.2*t)}
     if(ms.length<2)return amp;
     if(xm<=ms[0]){var o=ms[0]-xm;return amp*(o/(L*0.3))*(o/(L*0.3))}
     if(xm>=ms[ms.length-1]){var o2=xm-ms[ms.length-1];return amp*(o2/(L*0.3))*(o2/(L*0.3))}
     for(var k=0;k<ms.length-1;k++)if(xm>=ms[k]&&xm<=ms[k+1]){var u=(xm-ms[k])/(ms[k+1]-ms[k]);return amp*0.8*Math.sin(u*Math.PI)*((ms[k+1]-ms[k])/(L*0.75))}
     return 0;
   }
-  /* truss (two chords + diagonals) */
-  var d=h*0.05;ctx.lineWidth=2.2*dpr;ctx.strokeStyle="#C9CDD6";
-  var N=Math.round(L*4);
+  var d=h*0.045;ctx.lineWidth=2*dpr;ctx.strokeStyle=v.done?"#5BD38F":"#C9CDD6";var N=Math.round(L*4);
   for(var pass=0;pass<2;pass++){ctx.beginPath();for(var j=0;j<=N;j++){var xm=j/N*L,X=x0+xm*sc+shakeX,Y=yT+sag(xm)+pass*d;j?ctx.lineTo(X,Y):ctx.moveTo(X,Y)}ctx.stroke()}
-  ctx.lineWidth=1.3*dpr;ctx.strokeStyle="rgba(201,205,214,.7)";
+  ctx.lineWidth=1.2*dpr;ctx.strokeStyle=v.done?"rgba(91,211,143,.7)":"rgba(201,205,214,.7)";
   for(var j2=0;j2<N;j2++){var a=j2/N*L,b=(j2+1)/N*L,Xa=x0+a*sc+shakeX,Xb=x0+b*sc+shakeX;ctx.beginPath();if(j2%2){ctx.moveTo(Xa,yT+sag(a));ctx.lineTo(Xb,yT+sag(b)+d)}else{ctx.moveTo(Xa,yT+sag(a)+d);ctx.lineTo(Xb,yT+sag(b))}ctx.stroke()}
-  /* motors + chains + load bars */
   ms.forEach(function(xm,i){
     var X=x0+xm*sc+shakeX,Y=yT+sag(xm);
-    ctx.strokeStyle="#9AA3B2";ctx.lineWidth=2*dpr;ctx.setLineDash([5*dpr,4*dpr]);ctx.beginPath();ctx.moveTo(X,h*0.138);ctx.lineTo(X,Y);ctx.stroke();ctx.setLineDash([]);
-    ctx.fillStyle="#2E3542";ctx.fillRect(X-h*0.022,h*0.138,h*0.044,h*0.07);ctx.fillStyle="#F5B041";ctx.fillRect(X-h*0.022,h*0.138,h*0.044,h*0.012);
+    ctx.strokeStyle="#9AA3B2";ctx.lineWidth=2*dpr;ctx.setLineDash([5*dpr,4*dpr]);ctx.beginPath();ctx.moveTo(X,h*0.216);ctx.lineTo(X,Y);ctx.stroke();ctx.setLineDash([]);
+    ctx.fillStyle="#2E3542";ctx.fillRect(X-h*0.02,h*0.216,h*0.04,h*0.06);ctx.fillStyle="#F5B041";ctx.fillRect(X-h*0.02,h*0.216,h*0.04,h*0.01);
     var pct=res&&res.R[i]!=null?res.R[i]/cur.cap*100:null;
     var col=pct==null?"rgba(255,255,255,.25)":pct<0?"#FF5F5F":pct>100?"#FF5F5F":pct>80?"#FFB454":"#5BD38F";
-    var bw=h*0.03,bh=h*0.12,bx=X-bw/2,by=h*0.215;
+    var bw=h*0.026,bh=h*0.1,bx=X-bw/2,by=h*0.285;
     ctx.fillStyle="rgba(255,255,255,.08)";ctx.fillRect(bx,by,bw,bh);
     if(pct!=null){var fh=Math.min(1,Math.max(0,pct)/100)*bh;ctx.fillStyle=col;ctx.fillRect(bx,by+bh-fh,bw,fh)}
-    ctx.fillStyle=col;ctx.font="bold "+(h*0.022)+"px "+font;ctx.textAlign="center";ctx.fillText(pct==null?"M"+(i+1):(pct<0?"KALKIYOR":Math.round(pct)+"%"),X,by+bh+h*0.03);
-    if(pct!=null){ctx.fillStyle="rgba(255,255,255,.5)";ctx.font=(h*0.018)+"px "+font;ctx.fillText(Math.round(res.R[i])+" kg",X,by+bh+h*0.055)}
+    ctx.fillStyle=col;ctx.font="bold "+(h*0.02)+"px "+font;ctx.textAlign="center";ctx.fillText(pct==null?"M"+(i+1):(pct<0?"KALKIYOR":Math.round(pct)+"%"),X,by+bh+h*0.028);
   });
-  /* loads */
-  cur.loads.forEach(function(l,i){
-    var X=x0+l.x*sc+shakeX,Y=yT+d+sag(l.x),show=view.hung?1:0.35;
-    ctx.globalAlpha=show;
-    ctx.strokeStyle="#9AA3B2";ctx.lineWidth=1.5*dpr;ctx.beginPath();ctx.moveTo(X,Y);ctx.lineTo(X,Y+h*0.06);ctx.stroke();
-    var lw=Math.max(h*0.06,l.kg/300*h*0.16),lh=h*0.045;
-    ctx.fillStyle=l.n.indexOf("LED")>-1?"#4C6FB5":l.n.indexOf("Hoparl")>-1?"#555B66":"#B5322E";ctx.fillRect(X-lw/2,Y+h*0.06,lw,lh);
-    ctx.fillStyle="#fff";ctx.font="bold "+(h*0.02)+"px "+font;ctx.textAlign="center";ctx.fillText(l.n+" · "+l.kg+" kg",X,Y+h*0.06+lh+h*0.03);
-    ctx.globalAlpha=1;
+  cur.loads.forEach(function(l){
+    var X=x0+l.x*sc+shakeX,Y=yT+d+sag(l.x);ctx.globalAlpha=v.hung?1:0.35;
+    ctx.strokeStyle="#9AA3B2";ctx.lineWidth=1.5*dpr;ctx.beginPath();ctx.moveTo(X,Y);ctx.lineTo(X,Y+h*0.05);ctx.stroke();
+    var lw=Math.max(h*0.05,l.kg/300*h*0.14),lh=h*0.04;
+    ctx.fillStyle=l.n.indexOf("LED")>-1?"#4C6FB5":l.n.indexOf("Hoparl")>-1?"#555B66":"#B5322E";ctx.fillRect(X-lw/2,Y+h*0.05,lw,lh);
+    ctx.fillStyle="#fff";ctx.font="bold "+(h*0.018)+"px "+font;ctx.textAlign="center";ctx.fillText(l.n+" · "+l.kg+" kg",X,Y+h*0.05+lh+h*0.028);ctx.globalAlpha=1;
   });
-  /* span label */
-  ctx.fillStyle="rgba(255,255,255,.5)";ctx.font=(h*0.024)+"px "+font;ctx.textAlign="left";ctx.fillText("Truss "+L+" m · motor kapasitesi "+cur.cap+" kg · "+(game?view.motors.length:0)+"/"+cur.motors+" motor",x0,h*0.84);
+  if(v.done){ctx.fillStyle="rgba(91,211,143,.9)";ctx.font="900 "+(h*0.07)+"px "+getComputedStyle($("nmA")).fontFamily;ctx.textAlign="center";ctx.fillText("SAĞLAM",ox+ow/2,h*0.86)}
+  else if(v.collapse){ctx.fillStyle="rgba(255,95,95,.9)";ctx.font="900 "+(h*0.07)+"px "+getComputedStyle($("nmA")).fontFamily;ctx.textAlign="center";ctx.fillText("ÇÖKTÜ",ox+ow/2,h*0.84);
+    if(v.res&&v.res.fail){ctx.fillStyle="rgba(255,255,255,.8)";ctx.font="600 "+(h*0.024)+"px "+font;ctx.fillText(v.res.fail,ox+ow/2,h*0.88)}}
+  ctx.fillStyle="rgba(255,255,255,.45)";ctx.font=(h*0.02)+"px "+font;ctx.textAlign="left";ctx.fillText("Truss "+L+" m · motor "+cur.cap+" kg · "+(v.motors.length)+"/"+cur.motors,x0,h*0.95);
 }
-var collapseAt=0;
-(function watch(){var was=false;setInterval(function(){if(view.collapse&&!was)collapseAt=performance.now();was=!!view.collapse},30)})();
+function draw(now){
+  ctx.clearRect(0,0,W,H);
+  if(!match){drawStage(0,W,freshView(),"",now);return}
+  var half=W/2;
+  drawStage(0,half-2,match.v[0],match.p[0].name,now);
+  if(match.p[1])drawStage(half+2,half-2,match.v[1],match.p[1].name,now);
+  else{ctx.fillStyle="#0A0E18";ctx.fillRect(half,0,half,H);ctx.fillStyle="rgba(255,255,255,.3)";ctx.font="900 "+(H*0.08)+"px "+getComputedStyle($("nmA")).fontFamily;ctx.textAlign="center";ctx.fillText("SÜREYE KARŞI",half*1.5,H*0.5)}
+  if(match.phase==="play"){var left=Math.max(0,ROUND_DUR-(now-match.t0)/1000);$("time").textContent=String(Math.ceil(left));$("time").className="t"+(left<=10?" low":"");if(left<=0)endRound("süre doldu")}
+}
 function loop(now){draw(now);requestAnimationFrame(loop)}requestAnimationFrame(loop);
 
 /* ---------- phone link (direct WebRTC, ntfy fallback) ---------- */
 function onJoin(id,name){
   var p={id:id,name:String(name||"Oyuncu").slice(0,16)};
-  if(game&&game.p.id===p.id){tell(p,"level",levelPayload());return}
+  if(match&&side(id)>=0){if(match.phase==="play")tell(p,"level",levelPayload());return}
   if(queue.some(function(q){return q.id===p.id}))return;
   queue.push(p);renderQueue();
-  if(!game)nextPlayer();else tell(p,"queued","Sıradasın: "+queue.length+". Yaklaşık "+(queue.length*90)+" saniye.");
+  if(!match)nextPlayers();else tell(p,"queued","Sıradasın: "+queue.length+". Düello bitince başlıyorsun (~2 dk).");
 }
 function setLink(t){$("link").textContent=t}
 var peer=null;
@@ -290,10 +333,10 @@ function listen(){var es=new EventSource(NTFY+topic+"/sse?since=10s");es.onmessa
 listen();
 /* demo keys: space = demo player, 1-3 place motors evenly, enter = hang */
 addEventListener("keydown",function(e){
-  if(e.key===" "&&!game){queue.push({id:"demo",name:"Demo"});nextPlayer()}
-  if(game&&game.p.id==="demo"){
-    if(e.key>="1"&&e.key<="3"){var n=+e.key,arr=[];for(var i=0;i<n;i++)arr.push(cur.span*(i+1)/(n+1));onMotors("demo",arr)}
-    if(e.key==="Enter")onHang("demo");
+  if(e.key===" "){queue.push({id:"demo"+queue.length,name:queue.length?"Rakip":"Demo"});renderQueue();if(!match)nextPlayers()}
+  if(match){var pid=e.shiftKey?"demo1":"demo0";
+    if(e.key>="1"&&e.key<="3"){var n=+e.key,arr=[];for(var i=0;i<n;i++)arr.push(cur.span*(i+1)/(n+1));onMotors(pid,arr)}
+    if(e.key==="Enter")onHang(pid);
   }
 });
 })();
