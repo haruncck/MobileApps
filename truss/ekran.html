@@ -1,100 +1,78 @@
 <!doctype html>
-<html lang="tr">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Asın Çökmesin — Sahne</title>
+<title>Rig It Right — Stage</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;900&family=Figtree:wght@500;700&display=swap">
 <style>
-/* Layout: 16:9 LED wall. Canvas draws the truss span with live deflection + motor load bars. HUD top, rail right, idle overlay with QR. */
-:root{--bg:#07090D;--fg:#F2F0EA;--muted:#8E95A3;--accent:#F5B041;--good:#5BD38F;--warn:#FFB454;--bad:#FF5F5F;--panel:rgba(14,18,26,.82);
+/* Layout: 16:9 LED wall. Split stage (left/right player), duel HUD on top, overlays: idle (QR), waiting, round intro, match end. */
+:root{--bg:#07090D;--fg:#F2F0EA;--muted:#8E95A3;--accent:#F5B041;--good:#5BD38F;--warn:#FFB454;--bad:#FF5F5F;--panel:rgba(14,18,26,.85);
   --f-big:"Big Shoulders Display","Arial Narrow",Impact,sans-serif;--f:"Figtree",-apple-system,"Segoe UI",Roboto,sans-serif}
 *{box-sizing:border-box}
 html,body{height:100%;margin:0;background:var(--bg);color:var(--fg);font-family:var(--f);overflow:hidden;cursor:none}
 canvas{position:absolute;inset:0;width:100%;height:100%}
-.hud{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:flex-start;padding:2vh 2vw;pointer-events:none}
-.who{font-family:var(--f-big);font-weight:900;font-size:6vh;line-height:1;text-transform:uppercase}
-.who small{display:block;font-family:var(--f);font-size:2.2vh;font-weight:500;color:var(--muted);text-transform:none;margin-top:.6vh}
-.nums{display:flex;gap:3vw}
-.num{font-family:var(--f-big);font-weight:900;font-size:8vh;line-height:.9;text-align:right;font-variant-numeric:tabular-nums}
-.num small{display:block;font-family:var(--f);font-size:1.9vh;font-weight:700;letter-spacing:.14em;color:var(--muted)}
-.rail{position:absolute;top:0;right:0;bottom:0;width:21vw;padding:14vh 2vw 2vh;display:flex;flex-direction:column;gap:2.4vh;pointer-events:none}
-.box{background:var(--panel);border:1px solid rgba(255,255,255,.08);border-radius:1.4vh;padding:1.6vh 1.8vh}
-.box h3{margin:0 0 1vh;font-size:1.7vh;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
-.box ol{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:.7vh}
-.box li{display:flex;justify-content:space-between;gap:1vh;font-size:2.3vh;font-weight:700}
-.box li span{color:var(--muted);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.box li b{font-family:var(--f-big);font-size:3vh;font-variant-numeric:tabular-nums}
-.box .empty{color:var(--muted);font-size:2vh}
-.task{font-size:2.3vh;line-height:1.35}
-.task b{color:var(--accent)}
-.idle{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:5vw;background:rgba(7,9,13,.6);transition:opacity .4s}
-.idle[hidden]{display:flex!important;opacity:0;pointer-events:none}
-.cta{text-align:center;max-width:46vw}
-.cta h1{margin:0;font-family:var(--f-big);font-weight:900;font-size:13vh;line-height:.9;text-transform:uppercase;color:var(--accent)}
-.cta p{margin:2vh 0 0;font-size:3.2vh;font-weight:700}
-.cta p small{display:block;font-size:2.1vh;color:var(--muted);font-weight:500;margin-top:1vh}
-.qr{background:#fff;padding:1.6vh;border-radius:2vh;width:34vh;height:34vh}
-.qr img{display:block;width:100%;height:100%}
-.brand{position:absolute;left:2vw;bottom:2vh;font-size:2vh;color:var(--muted);letter-spacing:.14em;text-transform:uppercase}
-.brand b{color:var(--fg)}
-.end{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(7,9,13,.72);text-align:center}
-.end h2{margin:0;font-family:var(--f-big);font-weight:900;font-size:15vh;line-height:.9;text-transform:uppercase}
-.end h2.bad{color:var(--bad)}
-.end p{margin:1.5vh 0 0;font-size:3.6vh;font-weight:700;max-width:70vw}
-.end p span{color:var(--accent)}
-.end[hidden]{display:none!important}
-.flash{position:absolute;inset:0;background:var(--bad);opacity:0;pointer-events:none}
+[hidden]{display:none!important}
 .duel{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;padding:1.6vh 2vw;pointer-events:none}
-.pl{width:36vw}
-.pl.r{text-align:right}
-.pl .nm{font-family:var(--f-big);font-weight:900;font-size:5.6vh;line-height:1;text-transform:uppercase}
+.pl{width:36vw}.pl.r{text-align:right}
+.pl .nm{font-family:var(--f-big);font-weight:900;font-size:5.6vh;line-height:1;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pl .sc{font-family:var(--f-big);font-weight:900;font-size:7vh;line-height:.9;color:var(--accent);font-variant-numeric:tabular-nums}
 .pl .sc small{font-family:var(--f);font-size:1.8vh;font-weight:700;letter-spacing:.12em;color:var(--muted);margin-left:.6vw}
-.pl .wins{font-size:2.4vh;letter-spacing:.3vw;color:var(--accent)}
+.pl .wins{font-size:2.4vh;letter-spacing:.3vw;color:var(--accent);min-height:3vh}
 .mid{text-align:center}
 .mid .t{font-family:var(--f-big);font-weight:900;font-size:9vh;line-height:.9;font-variant-numeric:tabular-nums}
 .mid .t.low{color:var(--bad)}
 .mid small{display:block;font-size:1.9vh;font-weight:700;letter-spacing:.14em;color:var(--muted)}
-.vs{position:absolute;left:50%;top:14vh;bottom:0;width:2px;transform:translateX(-50%);background:linear-gradient(rgba(245,176,65,.0),rgba(245,176,65,.6),rgba(245,176,65,.0));pointer-events:none}
-.wait{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:5vw;background:rgba(7,9,13,.6)}
-.wait .cta h1{font-size:11vh}
-.wait[hidden]{display:none!important}
-.round{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none;text-align:center}
-.round h2{margin:0;font-family:var(--f-big);font-weight:900;font-size:18vh;line-height:.9;text-transform:uppercase;color:var(--accent);text-shadow:0 0 6vh rgba(245,176,65,.5)}
-.round p{margin:1vh 0 0;font-size:3.6vh;font-weight:700}
-.round[hidden]{display:none!important}
+.vs{position:absolute;left:50%;top:14vh;bottom:0;width:2px;transform:translateX(-50%);background:linear-gradient(rgba(245,176,65,0),rgba(245,176,65,.6),rgba(245,176,65,0));pointer-events:none}
+.overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:5vw;background:rgba(7,9,13,.62)}
+.cta{text-align:center;max-width:48vw}
+.cta h1{margin:0;font-family:var(--f-big);font-weight:900;font-size:13vh;line-height:.9;text-transform:uppercase;color:var(--accent)}
+.cta p{margin:2vh 0 0;font-size:3.2vh;font-weight:700}
+.cta p small{display:block;font-size:2.1vh;color:var(--muted);font-weight:500;margin-top:1vh}
+.qr{background:#fff;padding:1.6vh;border-radius:2vh;width:34vh;height:34vh;flex:none}
+.qr img{display:block;width:100%;height:100%}
+.board{position:absolute;right:2vw;bottom:6vh;width:20vw;background:var(--panel);border:1px solid rgba(255,255,255,.08);border-radius:1.4vh;padding:1.6vh 1.8vh;pointer-events:none}
+.board h3{margin:0 0 1vh;font-size:1.7vh;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.board ol{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:.6vh}
+.board li{display:flex;justify-content:space-between;gap:1vh;font-size:2.2vh;font-weight:700}
+.board li span{color:var(--muted);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.board li b{font-family:var(--f-big);font-size:2.8vh;font-variant-numeric:tabular-nums}
+.board .empty{color:var(--muted);font-size:2vh}
+.round{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none;text-align:center;background:rgba(7,9,13,.35)}
+.round h2{margin:0;font-family:var(--f-big);font-weight:900;font-size:17vh;line-height:.9;text-transform:uppercase;color:var(--accent);text-shadow:0 0 6vh rgba(245,176,65,.5)}
+.round p{margin:1.5vh 0 0;font-size:3.4vh;font-weight:700;max-width:70vw}
+.end{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(7,9,13,.75);text-align:center}
+.end h2{margin:0;font-family:var(--f-big);font-weight:900;font-size:15vh;line-height:.9;text-transform:uppercase}
+.end p{margin:1.5vh 0 0;font-size:3.6vh;font-weight:700;max-width:70vw}
+.end p.s{color:var(--muted);font-size:2.6vh}
+.brand{position:absolute;left:2vw;bottom:2vh;font-size:2vh;color:var(--muted);letter-spacing:.14em;text-transform:uppercase}
+.brand b{color:var(--fg)}
+.flash{position:absolute;inset:0;background:var(--bad);opacity:0;pointer-events:none;transition:opacity .15s}
 </style>
 </head>
 <body>
 <canvas id="c"></canvas>
 <div class="flash" id="flash"></div>
-<div class="duel">
-  <div class="pl"><div class="nm" id="nmA">—</div><div class="sc"><span id="scA">0</span><small>PUAN</small></div><div class="wins" id="wA"></div></div>
-  <div class="mid"><div class="t" id="time">60</div><small id="lvlTxt">TUR 1 / 3</small></div>
-  <div class="pl r"><div class="nm" id="nmB">—</div><div class="sc"><span id="scB">0</span><small>PUAN</small></div><div class="wins" id="wB"></div></div>
+<div class="duel" id="duel" hidden>
+  <div class="pl"><div class="nm" id="nmA">—</div><div class="sc"><span id="scA">0</span><small>PTS</small></div><div class="wins" id="wA"></div></div>
+  <div class="mid"><div class="t" id="time">45</div><small id="lvlTxt">ROUND 1 / 3</small></div>
+  <div class="pl r"><div class="nm" id="nmB">—</div><div class="sc"><span id="scB">0</span><small>PTS</small></div><div class="wins" id="wB"></div></div>
 </div>
 <div class="vs" id="vs" hidden></div>
-<div class="who" id="who" hidden><small id="whoSub"></small></div>
-<span id="lvl" hidden>1</span><span id="score" hidden>0</span>
-<div class="rail" style="top:14vh;padding-top:0;width:18vw;right:0;left:auto;display:none">
-  <div class="box"><h3>Görev</h3><div class="task" id="task"></div></div>
-  <div class="box"><h3>Sırada</h3><ol id="queue"><li class="empty">Sıra boş</li></ol></div>
-  <div class="box"><h3>Günün en iyileri</h3><ol id="board"><li class="empty">Henüz skor yok</li></ol></div>
-</div>
-<div class="idle" id="idle">
-  <div class="cta"><h1>Asın,<br>Çökmesin</h1><p>Rigging düellosu<small>İki kişi, aynı truss, aynı yükler. Kim önce sağlam asarsa tur onun. 3 turda kazanan belli olur.</small></p></div>
+<div class="overlay" id="idle">
+  <div class="cta"><h1>Rig It<br>Right</h1><p>The rigging duel<small>Two players, same truss, same loads. Place the hoists, hang the rig. First solid rig wins the round. Best of 3.</small></p></div>
   <div class="qr" id="qr"></div>
 </div>
-<div class="wait" id="wait" hidden>
-  <div class="cta"><h1 id="waitT">Rakip bekleniyor</h1><p id="waitP"></p><p><small>Karekodu okutan ikinci kişi rakip olur. 20 saniyede kimse gelmezse süreye karşı oynarsın.</small></p></div>
+<div class="overlay" id="wait" hidden>
+  <div class="cta"><h1 id="waitT">Waiting for a rival</h1><p id="waitP"></p><p><small id="waitS"></small></p></div>
   <div class="qr" id="qr2"></div>
 </div>
-<div class="round" id="round" hidden><h2 id="roundT">Tur 1</h2><p id="roundP"></p></div>
-<div class="end" id="end" hidden><h2 id="endT">Tur tamam</h2><p id="endP"></p><p id="endP2" style="color:var(--muted);font-size:2.6vh"></p></div>
-<div class="brand"><b>Gala Sahne</b> · Rigging · <span id="link">bağlantı bekleniyor</span></div>
+<div class="round" id="round" hidden><h2 id="roundT">Round 1</h2><p id="roundP"></p></div>
+<div class="end" id="end" hidden><h2 id="endT"></h2><p id="endP"></p><p class="s" id="endP2"></p></div>
+<div class="board" id="boardBox"><h3>Today's best</h3><ol id="board"><li class="empty">No scores yet</li></ol></div>
+<div class="brand"><b>Gala Sahne</b> · Smart Control · <span id="link">waiting for players</span></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js"></script>
@@ -103,145 +81,177 @@ canvas{position:absolute;inset:0;width:100%;height:100%}
 "use strict";
 var NTFY="https://ntfy.sh/",$=function(id){return document.getElementById(id)};
 var m=/[#&]k=([a-z0-9-]{6,64})/.exec(location.hash||"");
-var topic=m?m[1]:"truss-"+Math.random().toString(36).slice(2,10);
+var topic=m?m[1]:"rig-"+Math.random().toString(36).slice(2,10);
 if(!m)location.hash="k="+topic;
 var phoneUrl=location.href.replace(/[^\/]*$/,"")+"kumanda.html#k="+topic;
-try{var q=qrcode(0,"M");q.addData(phoneUrl);q.make();$("qr").innerHTML=q.createImgTag(6,0)}catch(e){$("qr").textContent=phoneUrl}
+["qr","qr2"].forEach(function(id){try{var q=qrcode(0,"M");q.addData(phoneUrl);q.make();$(id).innerHTML=q.createImgTag(6,0)}catch(e){$(id).textContent=phoneUrl}});
 
-/* ---------- levels: span (m), motor capacity (kg), motor count allowed, loads [{name,kg,x(m)}] ---------- */
+/* ---------- config ---------- */
+var ROUNDS=3,ROUND_DUR=45,WAIT_FOR_RIVAL=20,IDLE_FORFEIT=30,MIN_GAP=0.6,TRUSS_KG_PER_M=12;
+$("waitS").textContent="The next person to scan becomes the rival. If nobody joins within "+WAIT_FOR_RIVAL+" s you play against the clock.";
+/* levels: span (m), hoist capacity (kg), hoists, loads [{n,kg,x}], start positions chosen so the default layout fails */
 var LEVELS=[
- {span:8, cap:250, motors:2, loads:[{n:"Işık barı",kg:120,x:2},{n:"Işık barı",kg:120,x:6}],tip:"Tur 1: 8 m truss, 2 motor. Kim önce sağlam asarsa 150 puan."},
- {span:10,cap:250, motors:3, loads:[{n:"LED panel",kg:220,x:5},{n:"Hoparlör",kg:90,x:1},{n:"Hoparlör",kg:90,x:9}],tip:"Tur 2: Ağır LED ortada, hoparlörler uçta. 3 motor var."},
- {span:12,cap:250, motors:3, loads:[{n:"LED panel",kg:260,x:3},{n:"Işık barı",kg:140,x:7},{n:"Işık barı",kg:140,x:10.5}],tip:"Tur 3: Asimetrik yük. Motorları eşit aralıkla koymak yetmez."},
- {span:12,cap:320, motors:2, loads:[{n:"LED panel",kg:200,x:4},{n:"Hoparlör",kg:110,x:11},{n:"Işık barı",kg:120,x:8}],tip:"Tur 4: Sadece 2 motor. Konsol (dışa taşan) uç ne kadar olabilir?"}
+ {span:8, cap:250,motors:2,start:[1.0,2.6],loads:[{n:"Light bar",kg:120,x:2},{n:"Light bar",kg:120,x:6}],tip:"8 m truss, 2 hoists. Spread them under the loads."},
+ {span:10,cap:250,motors:3,start:[0.8,2.0,3.4],loads:[{n:"LED wall",kg:220,x:5},{n:"Speaker",kg:90,x:1},{n:"Speaker",kg:90,x:9}],tip:"Heavy LED in the middle, speakers at the ends. 3 hoists."},
+ {span:12,cap:250,motors:3,start:[4.0,6.0,8.0],loads:[{n:"LED wall",kg:260,x:3},{n:"Light bar",kg:140,x:7},{n:"Light bar",kg:140,x:10.5}],tip:"Uneven loads. Equal spacing will not save you."},
+ {span:12,cap:320,motors:2,start:[5.0,7.0],loads:[{n:"LED wall",kg:200,x:4},{n:"Speaker",kg:110,x:11},{n:"Light bar",kg:120,x:8}],tip:"Only 2 hoists. How long can a cantilever be?"}
 ];
-var TRUSS_KG_PER_M=12,DEFLECT_LIMIT=1/150;   /* L/150 görsel çökme eşiği */
-var DUR=60;
+var levelOffset=0;
 
-/* ---------- physics: statically determinate for 2 motors; for 3, distribute by tributary spans with continuity fudge ---------- */
-function solve(L,motors,loads){
-  var ms=motors.slice().sort(function(a,b){return a-b}),n=ms.length,R=ms.map(function(){return 0});
+/* ---------- physics: loads split to the two nearest hoists (lever rule); overhang loads lever against the end pair ---------- */
+function solve(L,motors,loads,cap){
+  var ms=motors.slice().sort(function(a,b){return a-b}),n=ms.length;
+  if(n<2)return {R:[],ok:false,fail:"place all hoists first",maxPct:0,defl:0};
+  for(var g=1;g<n;g++)if(ms[g]-ms[g-1]<MIN_GAP)return {R:ms.map(function(){return 0}),ok:false,fail:"hoists too close together",maxPct:0,defl:0.3};
+  var R=ms.map(function(){return 0});
   var all=loads.map(function(l){return {kg:l.kg,x:l.x}}).concat([{kg:TRUSS_KG_PER_M*L,x:L/2}]);
-  if(n===0)return {R:[],ok:false,fail:"motor yok",maxPct:999,defl:1};
-  if(n===1){var tot=0,mom=0;all.forEach(function(l){tot+=l.kg;mom+=l.kg*(l.x-ms[0])});return {R:[tot],ok:false,fail:"tek motor: truss döner",maxPct:999,defl:1,tilt:mom}}
   all.forEach(function(l){
-    /* find bracket */
-    var i=0;while(i<n-1&&ms[i+1]<l.x)i++;
-    if(l.x<=ms[0]){var a=ms[0],b=ms[1];var d=b-a;R[0]+=l.kg*(b-l.x)/d;R[1]+=l.kg*(l.x-a)/d}       /* overhang left: lever */
-    else if(l.x>=ms[n-1]){var a2=ms[n-2],b2=ms[n-1];var d2=b2-a2;R[n-2]+=l.kg*(b2-l.x)/d2;R[n-1]+=l.kg*(l.x-a2)/d2}
-    else{var a3=ms[i],b3=ms[i+1],d3=b3-a3;R[i]+=l.kg*(b3-l.x)/d3;R[i+1]+=l.kg*(l.x-a3)/d3}
+    var a,b,i;
+    if(l.x<=ms[0]){a=0;b=1}else if(l.x>=ms[n-1]){a=n-2;b=n-1}else{i=0;while(i<n-2&&ms[i+1]<l.x)i++;a=i;b=i+1}
+    var d=ms[b]-ms[a];R[a]+=l.kg*(ms[b]-l.x)/d;R[b]+=l.kg*(l.x-ms[a])/d;
   });
-  /* deflection proxy: worst of overhangs and inner spans, relative to limit */
-  var worst=0,segs=[];
-  segs.push({len:ms[0],kind:"ov"});segs.push({len:L-ms[n-1],kind:"ov"});
-  for(var k=0;k<n-1;k++)segs.push({len:ms[k+1]-ms[k],kind:"in"});
-  segs.forEach(function(s){var w=0;all.forEach(function(l){w+=l.kg});var ratio=s.kind==="ov"?s.len/(L*0.36):s.len/(L*0.8);worst=Math.max(worst,ratio*ratio*(0.6+0.4*w/(400)))});
-  var neg=R.some(function(r){return r<-1}),maxPct=0;R.forEach(function(r,i){maxPct=Math.max(maxPct,r/Number(cur.cap)*100)});
+  var worst=0;
+  function segLoad(x0,x1){var w=0;all.forEach(function(l){if(l.x>=x0&&l.x<=x1)w+=l.kg});return w}
+  var ovL=ms[0],ovR=L-ms[n-1];
+  worst=Math.max(worst,(ovL/(L*0.34))*(ovL/(L*0.34))*(0.5+segLoad(0,ms[0])/300));
+  worst=Math.max(worst,(ovR/(L*0.34))*(ovR/(L*0.34))*(0.5+segLoad(ms[n-1],L)/300));
+  for(var k=0;k<n-1;k++){var len=ms[k+1]-ms[k];worst=Math.max(worst,(len/(L*0.85))*(len/(L*0.85))*(0.5+segLoad(ms[k],ms[k+1])/400))}
+  var maxPct=0,neg=false;R.forEach(function(r){maxPct=Math.max(maxPct,r/cap*100);if(r<-1)neg=true});
   var fail=null;
-  if(neg)fail="bir motor kalkıyor (negatif yük): truss devrilir";
-  else if(maxPct>100)fail="motor kapasitesi aşıldı: %"+Math.round(maxPct);
-  else if(worst>1.15)fail="uç ya da orta açıklık çok uzun: truss aşırı bükülüyor";
+  if(neg)fail="a hoist is being lifted off: the truss tips";
+  else if(maxPct>100)fail="hoist overloaded: "+Math.round(maxPct)+"%";
+  else if(worst>1.2)fail="span too long: the truss bends too much";
   return {R:R,ok:!fail,fail:fail,maxPct:maxPct,defl:Math.min(1.4,worst)};
 }
 
-/* ---------- state (duel) ---------- */
+/* ---------- state ---------- */
 var cv=$("c"),ctx=cv.getContext("2d"),W=0,H=0;
 function resize(){W=cv.width=innerWidth*devicePixelRatio;H=cv.height=innerHeight*devicePixelRatio}
 addEventListener("resize",resize);resize();
-var ROUNDS=3,ROUND_DUR=45,WAIT_FOR_RIVAL=20;
-var queue=[],board=[],cur=LEVELS[0],match=null,waitTimer=null;
+var queue=[],board=[],match=null,ending=false,waitTimer=null,cur=LEVELS[0];
+var players={};
 function post(body){try{var x=new XMLHttpRequest();x.open("POST",NTFY,true);x.setRequestHeader("Content-Type","application/json");x.send(JSON.stringify(body))}catch(e){}}
-var conns={};
-function tell(p,t,m){var c=conns[p.id];if(c&&c.open){try{c.send({t:t,m:m})}catch(e){}}else post({topic:topic+"-"+p.id,message:typeof m==="string"?m:JSON.stringify(m),title:"Sahne",tags:[t]})}
-function freshView(){return {motors:[],hung:0,shake:0,collapse:0,collapseAt:0,res:null,done:false,fails:0}}
-function levelPayload(){return {span:cur.span,cap:cur.cap,motors:cur.motors,loads:cur.loads.map(function(l){return {n:l.n,kg:l.kg,x:l.x}})}}
-try{var qq=qrcode(0,"M");qq.addData(phoneUrl);qq.make();$("qr2").innerHTML=qq.createImgTag(6,0)}catch(e){}
+function tell(p,t,m){var pl=players[p.id];if(pl&&pl.conn&&pl.conn.open){try{pl.conn.send({t:t,m:m});return}catch(e){}}post({topic:topic+"-"+p.id,message:JSON.stringify(m==null?"":m),title:"Stage",tags:[t]})}
+function freshView(){return {motors:[],hung:0,shake:0,collapse:0,collapseAt:0,res:null,done:false,fails:0,lastAct:performance.now()}}
+function levelPayload(round){return {round:round+1,rounds:ROUNDS,dur:ROUND_DUR,span:cur.span,cap:cur.cap,motors:cur.motors,start:cur.start,loads:cur.loads,tip:cur.tip}}
+function setLink(t){$("link").textContent=t}
+function side(id){if(!match)return -1;if(match.p[0].id===id)return 0;if(match.p[1]&&match.p[1].id===id)return 1;return -1}
+function dots(n){var s="";for(var i=0;i<n;i++)s+="●";return s}
 
-function side(id){if(!match)return -1;return match.p[0].id===id?0:(match.p[1]&&match.p[1].id===id)?1:-1}
+/* ---------- match flow ---------- */
 function beginMatch(pA,pB){
-  clearTimeout(waitTimer);
-  match={p:[pA,pB],score:[0,0],wins:[0,0],round:0,v:[freshView(),freshView()],t0:0,phase:"round",roundWinner:-1};
-  $("nmA").textContent=pA.name;$("nmB").textContent=pB?pB.name:"SÜRE";$("scA").textContent="0";$("scB").textContent=pB?"0":"—";$("wA").textContent="";$("wB").textContent="";
-  $("idle").hidden=true;$("wait").hidden=true;$("end").hidden=true;$("vs").hidden=false;
+  clearTimeout(waitTimer);waitTimer=null;
+  match={p:[pA,pB],score:[0,0],wins:[0,0],round:0,v:[freshView(),freshView()],t0:0,phase:"intro",roundWinner:-1};
+  $("nmA").textContent=pA.name;$("nmB").textContent=pB?pB.name:"THE CLOCK";$("scA").textContent="0";$("scB").textContent=pB?"0":"—";$("wA").textContent="";$("wB").textContent="";
+  $("idle").hidden=true;$("wait").hidden=true;$("end").hidden=true;$("duel").hidden=false;$("vs").hidden=!pB;$("boardBox").hidden=true;
   startRound();
 }
 function startRound(){
-  var r=match.round;cur=LEVELS[r%LEVELS.length];match.v=[freshView(),freshView()];match.phase="intro";match.roundWinner=-1;
-  $("lvlTxt").textContent="TUR "+(r+1)+" / "+ROUNDS;$("time").textContent=String(ROUND_DUR);$("time").className="t";
-  $("roundT").textContent="Tur "+(r+1);$("roundP").textContent=cur.tip.replace(/^Tur \d+: /,"");$("round").hidden=false;
-  setTimeout(function(){$("round").hidden=true;match.phase="play";match.t0=performance.now();match.p.forEach(function(p){if(p)tell(p,"level",levelPayload())})},2600);
+  var r=match.round;cur=LEVELS[(levelOffset+r)%LEVELS.length];match.v=[freshView(),freshView()];match.phase="intro";match.roundWinner=-1;
+  $("lvlTxt").textContent="ROUND "+(r+1)+" / "+ROUNDS;$("time").textContent=String(ROUND_DUR);$("time").className="t";
+  $("roundT").textContent="Round "+(r+1);$("roundP").textContent=cur.tip;$("round").hidden=false;
+  setTimeout(function(){if(!match||match.round!==r)return;$("round").hidden=true;match.phase="play";match.t0=performance.now();match.v.forEach(function(v){v.lastAct=performance.now()});match.p.forEach(function(p){if(p)tell(p,"level",levelPayload(r))})},2600);
 }
 function endRound(reason){
   if(!match||match.phase!=="play")return;match.phase="between";
-  var w=match.roundWinner;
-  var txt=w<0?"Bu turda kimse asamadı":(match.p[w].name+" turu aldı");
-  if(w>=0){match.wins[w]++;$("wA").textContent=Array(match.wins[0]+1).join("●");$("wB").textContent=Array(match.wins[1]+1).join("●")}
-  $("roundT").textContent=w<0?"Berabere":"Tur "+(match.round+1)+" "+(w===0?"sol":"sağ");$("roundT").textContent=w<0?"Çöktü!":match.p[w].name;$("roundP").textContent=txt+(reason?" · "+reason:"");$("round").hidden=false;
-  match.p.forEach(function(p,i){if(p)tell(p,"round",{won:i===w,txt:txt,score:match.score[i]})});
-  setTimeout(function(){$("round").hidden=true;match.round++;if(match.round>=ROUNDS||match.wins[0]===2||match.wins[1]===2)finishMatch();else startRound()},3000);
+  var w=match.roundWinner,pb=match.p[1];
+  if(w>=0)match.wins[w]++;
+  $("wA").textContent=dots(match.wins[0]);$("wB").textContent=pb?dots(match.wins[1]):"";
+  var title,txt;
+  if(w<0){title=reason==="timeout"?"Time's up":"Nobody rigged it";txt="No points this round."}
+  else{title=match.p[w].name;txt=pb?match.p[w].name+" takes the round":"Round complete"}
+  $("roundT").textContent=title;$("roundP").textContent=txt;$("round").hidden=false;
+  match.p.forEach(function(p,i){if(p)tell(p,"round",{won:i===w,txt:txt,score:match.score[i],wins:match.wins[i]})});
+  var r=match.round;
+  setTimeout(function(){if(!match||match.round!==r)return;$("round").hidden=true;match.round++;
+    if(match.round>=ROUNDS||match.wins[0]===2||(pb&&match.wins[1]===2))finishMatch();else startRound()},3000);
 }
 function finishMatch(){
-  var w=match.wins[0]===match.wins[1]?(match.score[0]===match.score[1]?-1:(match.score[0]>match.score[1]?0:1)):(match.wins[0]>match.wins[1]?0:1);
-  match.p.forEach(function(p,i){if(!p)return;board.push({name:p.name,score:match.score[i]})});
-  board.sort(function(a,b){return b.score-a.score});board=board.slice(0,8);try{localStorage.setItem("tr.board",JSON.stringify(board))}catch(e){}
+  var pb=match.p[1],w;
+  if(!pb)w=match.score[0]>0?0:-1;
+  else if(match.wins[0]!==match.wins[1])w=match.wins[0]>match.wins[1]?0:1;
+  else if(match.score[0]!==match.score[1])w=match.score[0]>match.score[1]?0:1;
+  else w=-1;
+  match.p.forEach(function(p,i){if(!p)return;var ex=null;board.forEach(function(b){if(b.name===p.name)ex=b});if(ex)ex.score=Math.max(ex.score,match.score[i]);else board.push({name:p.name,score:match.score[i]})});
+  board.sort(function(a,b){return b.score-a.score});board=board.slice(0,8);try{localStorage.setItem("rig.board",JSON.stringify(board))}catch(e){}
   renderBoard();
-  var pb=match.p[1];
-  $("endT").textContent=w<0?"Berabere!":(match.p[w].name+" kazandı!");$("endT").className="";
-  $("endP").textContent=match.p[0].name+" "+match.score[0]+" · "+(pb?pb.name+" "+match.score[1]:"süreye karşı");
-  $("endP2").textContent=w>=0&&pb?"Kaybeden: "+match.p[1-w].name+" · standa gel, rövanş hakkın var":"";
+  if(!pb){$("endT").textContent=w===0?"Rigged!":"No rig today";$("endT").style.color=w===0?"var(--good)":"var(--bad)";$("endP").textContent=match.p[0].name+" · "+match.score[0]+" pts";$("endP2").textContent=w===0?"Come to the stand and claim your prize.":"Scan again for another go."}
+  else if(w<0){$("endT").textContent="It's a draw!";$("endT").style.color="";$("endP").textContent=match.p[0].name+" "+match.score[0]+" · "+pb.name+" "+match.score[1];$("endP2").textContent="Rematch? Scan again."}
+  else{$("endT").textContent=match.p[w].name+" wins!";$("endT").style.color="var(--good)";$("endP").textContent=match.p[0].name+" "+match.score[0]+" · "+pb.name+" "+match.score[1];$("endP2").textContent=match.p[1-w].name+", you have a rematch coming. Scan again."}
   $("end").hidden=false;
   match.p.forEach(function(p,i){if(p)tell(p,"end",{won:i===w,draw:w<0,score:match.score[i],rival:pb?match.p[1-i].name:"",rivalScore:pb?match.score[1-i]:0})});
-  var m=match;match=null;
-  setTimeout(function(){$("end").hidden=true;$("vs").hidden=true;nextPlayers()},7000);
+  match=null;ending=true;levelOffset=(levelOffset+1)%LEVELS.length;
+  setTimeout(function(){ending=false;$("end").hidden=true;$("vs").hidden=true;$("duel").hidden=true;$("boardBox").hidden=false;nextPlayers()},7000);
 }
 function nextPlayers(){
-  if(match)return;
+  if(match||ending)return;
+  queue=queue.filter(function(p){return players[p.id]});
   if(queue.length>=2){beginMatch(queue.shift(),queue.shift());return}
   if(queue.length===1){
-    var p=queue[0];$("idle").hidden=true;$("waitT").textContent="Rakip bekleniyor";$("waitP").textContent=p.name+" hazır";$("wait").hidden=false;
-    tell(p,"queued","Rakip bekleniyor… 20 saniyede kimse gelmezse süreye karşı oynarsın.");
-    clearTimeout(waitTimer);waitTimer=setTimeout(function(){if(queue.length===1&&!match){var a=queue.shift();beginMatch(a,null)}},WAIT_FOR_RIVAL*1000);
+    var p=queue[0];$("idle").hidden=true;$("waitP").textContent=p.name+" is ready";$("wait").hidden=false;
+    tell(p,"queued","Waiting for a rival… if nobody joins in "+WAIT_FOR_RIVAL+" s you play against the clock.");
+    if(!waitTimer)waitTimer=setTimeout(function(){waitTimer=null;if(match||ending)return;queue=queue.filter(function(q){return players[q.id]});if(queue.length===1)beginMatch(queue.shift(),null);else nextPlayers()},WAIT_FOR_RIVAL*1000);
     return;
   }
-  $("idle").hidden=false;$("wait").hidden=true;cur=LEVELS[0];renderQueue();
+  clearTimeout(waitTimer);waitTimer=null;$("idle").hidden=false;$("wait").hidden=true;cur=LEVELS[levelOffset];
 }
-function renderQueue(){var ol=$("queue");ol.innerHTML="";if(!queue.length){ol.innerHTML='<li class="empty">Sıra boş</li>';return}
-  queue.slice(0,5).forEach(function(p,i){var li=document.createElement("li");li.innerHTML="<span></span><b>"+(i+1)+"</b>";li.firstChild.textContent=p.name;ol.appendChild(li)})}
-function renderBoard(){var ol=$("board");ol.innerHTML="";if(!board.length){ol.innerHTML='<li class="empty">Henüz skor yok</li>';return}
+function renderBoard(){var ol=$("board");ol.innerHTML="";if(!board.length){ol.innerHTML='<li class="empty">No scores yet</li>';return}
   board.slice(0,6).forEach(function(b){var li=document.createElement("li");li.innerHTML="<span></span><b></b>";li.firstChild.textContent=b.name;li.lastChild.textContent=b.score;ol.appendChild(li)})}
-try{board=JSON.parse(localStorage.getItem("tr.board")||"[]")}catch(e){}
+try{board=JSON.parse(localStorage.getItem("rig.board")||"[]");if(!Array.isArray(board))board=[]}catch(e){board=[]}
 renderBoard();
 
 /* ---------- player actions ---------- */
-function onMotors(pid,arr){
-  var i=side(pid);if(i<0||!match||match.phase!=="play")return;var v=match.v[i];if(v.done)return;
-  v.motors=(arr||[]).map(Number).filter(function(x){return !isNaN(x)}).slice(0,cur.motors).map(function(x){return Math.max(0,Math.min(cur.span,x))});
-  v.res=null;v.hung=0;
+function onJoin(id,name){
+  var p=players[id];if(!p)p=players[id]={id:id,name:"",conn:null};
+  p.name=String(name||"Player").replace(/\s+/g," ").trim().slice(0,14)||"Player";p.lastSeen=performance.now();
+  var s=side(id);
+  if(s>=0){if(match.phase==="play"&&!match.v[s].done)tell(p,"level",levelPayload(match.round));return}
+  if(queue.some(function(q){return q.id===id}))return;
+  queue.push(p);
+  if(match||ending)tell(p,"queued","You're in line ("+queue.length+"). The current duel ends in about 2 minutes.");
+  else nextPlayers();
 }
-function onHang(pid){
-  var i=side(pid);if(i<0||!match||match.phase!=="play")return;var v=match.v[i];if(v.done||v.collapse)return;
-  var r=solve(cur.span,v.motors,cur.loads);v.res=r;v.hung=1;var p=match.p[i];
+function onLeave(id){
+  var p=players[id];if(!p)return;p.conn=null;
+  var inQ=queue.some(function(q){return q.id===id});
+  if(inQ&&!match){queue=queue.filter(function(q){return q.id!==id});delete players[id];nextPlayers()}
+}
+function onMotors(id,arr){
+  var i=side(id);if(i<0||match.phase!=="play")return;var v=match.v[i];if(v.done)return;
+  v.motors=(arr||[]).map(Number).filter(function(x){return isFinite(x)}).slice(0,cur.motors).map(function(x){return Math.max(0,Math.min(cur.span,x))});
+  v.res=null;v.hung=0;v.lastAct=performance.now();
+}
+function onHang(id){
+  var i=side(id);if(i<0||!match||match.phase!=="play")return;var v=match.v[i],p=match.p[i];
+  v.lastAct=performance.now();
+  if(v.done||v.collapse){tell(p,"state",{locked:v.done,msg:v.done?"Already rigged.":"Rebuilding…"});return}
+  if(v.motors.length<cur.motors){tell(p,"retry",{score:match.score[i],msg:"Place all "+cur.motors+" hoists first."});return}
+  var r=solve(cur.span,v.motors,cur.loads,cur.cap);v.res=r;v.hung=1;
   if(r.ok){
     v.done=true;
     var elapsed=(performance.now()-match.t0)/1000,first=match.roundWinner<0;
     var pts=(first?150:60)+Math.max(0,Math.round((ROUND_DUR-elapsed)*2))+Math.round(Math.max(0,100-r.maxPct))-v.fails*20;
     pts=Math.max(10,pts);match.score[i]+=pts;$(i?"scB":"scA").textContent=String(match.score[i]);
     if(first)match.roundWinner=i;
-    tell(p,"ok",{pts:pts,maxPct:Math.round(r.maxPct),R:r.R.map(Math.round),first:first});
+    tell(p,"ok",{pts:pts,maxPct:Math.round(r.maxPct),loads:sortedLoads(v,r),first:first,score:match.score[i]});
     var other=match.p[1-i];
-    if(!other||match.v[1-i].done)endRound(first?"":"");
-    else if(first){tell(other,"hurry","Rakibin astı! Hâlâ puan alabilirsin, acele et.");}
+    if(!other||match.v[1-i].done)endRound("done");
+    else if(first)tell(other,"hurry","Your rival rigged it! You can still score — hurry.");
   }else{
     v.collapse=1;v.shake=1;v.collapseAt=performance.now();v.fails++;$("flash").style.opacity=.4;setTimeout(function(){$("flash").style.opacity=0},160);
-    tell(p,"fail",{why:r.fail,R:r.R.map(Math.round)});
-    var other2=match.p[1-i];if(other2)tell(other2,"rivalfail",p.name+" çöktü!");
-    setTimeout(function(){if(!match)return;var vv=match.v[i];if(vv!==v)return;v.hung=0;v.shake=0;v.collapse=0;v.res=null;tell(p,"retry","")},2200);
+    tell(p,"fail",{why:r.fail,loads:sortedLoads(v,r)});
+    var o=match.p[1-i];if(o&&!match.v[1-i].done)tell(o,"rivalfail",p.name+" collapsed!");
+    setTimeout(function(){if(!match||match.v[i]!==v||match.phase!=="play")return;v.hung=0;v.shake=0;v.collapse=0;v.res=null;tell(p,"retry",{score:match.score[i],msg:"Move the hoists and hang again."})},2200);
   }
 }
+function sortedLoads(v,r){
+  var idx=v.motors.map(function(x,i){return {x:x,i:i}}).sort(function(a,b){return a.x-b.x}),out=[];
+  idx.forEach(function(o,k){out[o.i]=Math.round(r.R[k]||0)});return out;
+}
 
-/* ---------- drawing: two half-stages ---------- */
-function drawStage(ox,ow,v,label,now){
-  var w=W,h=H,dpr=devicePixelRatio,L=cur.span,x0=ox+ow*0.08,x1=ox+ow*0.92,sc=(x1-x0)/L,yT=h*0.5,font=getComputedStyle(document.body).fontFamily;
+/* ---------- drawing ---------- */
+function drawStage(ox,ow,v,now){
+  var w=W,h=H,dpr=devicePixelRatio,L=cur.span,x0=ox+ow*0.08,x1=ox+ow*0.92,sc=(x1-x0)/L,yT=h*0.5,font=getComputedStyle(document.body).fontFamily,big=getComputedStyle($("nmA")).fontFamily;
   var g=ctx.createLinearGradient(0,0,0,h);g.addColorStop(0,"#0A0E18");g.addColorStop(1,"#161C2A");ctx.fillStyle=g;ctx.fillRect(ox,0,ow,h);
   ctx.fillStyle="#2A2118";ctx.fillRect(ox,h*0.9,ow,h*0.1);
   ctx.fillStyle="#3A4150";ctx.fillRect(x0-ow*0.03,h*0.2,(x1-x0)+ow*0.06,h*0.016);
@@ -266,55 +276,58 @@ function drawStage(ox,ow,v,label,now){
     var X=x0+xm*sc+shakeX,Y=yT+sag(xm);
     ctx.strokeStyle="#9AA3B2";ctx.lineWidth=2*dpr;ctx.setLineDash([5*dpr,4*dpr]);ctx.beginPath();ctx.moveTo(X,h*0.216);ctx.lineTo(X,Y);ctx.stroke();ctx.setLineDash([]);
     ctx.fillStyle="#2E3542";ctx.fillRect(X-h*0.02,h*0.216,h*0.04,h*0.06);ctx.fillStyle="#F5B041";ctx.fillRect(X-h*0.02,h*0.216,h*0.04,h*0.01);
-    var pct=res&&res.R[i]!=null?res.R[i]/cur.cap*100:null;
+    var pct=res&&res.R[i]!=null&&isFinite(res.R[i])?res.R[i]/cur.cap*100:null;
     var col=pct==null?"rgba(255,255,255,.25)":pct<0?"#FF5F5F":pct>100?"#FF5F5F":pct>80?"#FFB454":"#5BD38F";
     var bw=h*0.026,bh=h*0.1,bx=X-bw/2,by=h*0.285;
     ctx.fillStyle="rgba(255,255,255,.08)";ctx.fillRect(bx,by,bw,bh);
     if(pct!=null){var fh=Math.min(1,Math.max(0,pct)/100)*bh;ctx.fillStyle=col;ctx.fillRect(bx,by+bh-fh,bw,fh)}
-    ctx.fillStyle=col;ctx.font="bold "+(h*0.02)+"px "+font;ctx.textAlign="center";ctx.fillText(pct==null?"M"+(i+1):(pct<0?"KALKIYOR":Math.round(pct)+"%"),X,by+bh+h*0.028);
+    ctx.fillStyle=col;ctx.font="bold "+(h*0.02)+"px "+font;ctx.textAlign="center";ctx.fillText(pct==null?"H"+(i+1):(pct<0?"LIFTING":Math.round(pct)+"%"),X,by+bh+h*0.028);
   });
   cur.loads.forEach(function(l){
     var X=x0+l.x*sc+shakeX,Y=yT+d+sag(l.x);ctx.globalAlpha=v.hung?1:0.35;
     ctx.strokeStyle="#9AA3B2";ctx.lineWidth=1.5*dpr;ctx.beginPath();ctx.moveTo(X,Y);ctx.lineTo(X,Y+h*0.05);ctx.stroke();
     var lw=Math.max(h*0.05,l.kg/300*h*0.14),lh=h*0.04;
-    ctx.fillStyle=l.n.indexOf("LED")>-1?"#4C6FB5":l.n.indexOf("Hoparl")>-1?"#555B66":"#B5322E";ctx.fillRect(X-lw/2,Y+h*0.05,lw,lh);
+    ctx.fillStyle=l.n.indexOf("LED")>-1?"#4C6FB5":l.n.indexOf("Speaker")>-1?"#555B66":"#B5322E";ctx.fillRect(X-lw/2,Y+h*0.05,lw,lh);
     ctx.fillStyle="#fff";ctx.font="bold "+(h*0.018)+"px "+font;ctx.textAlign="center";ctx.fillText(l.n+" · "+l.kg+" kg",X,Y+h*0.05+lh+h*0.028);ctx.globalAlpha=1;
   });
-  if(v.done){ctx.fillStyle="rgba(91,211,143,.9)";ctx.font="900 "+(h*0.07)+"px "+getComputedStyle($("nmA")).fontFamily;ctx.textAlign="center";ctx.fillText("SAĞLAM",ox+ow/2,h*0.86)}
-  else if(v.collapse){ctx.fillStyle="rgba(255,95,95,.9)";ctx.font="900 "+(h*0.07)+"px "+getComputedStyle($("nmA")).fontFamily;ctx.textAlign="center";ctx.fillText("ÇÖKTÜ",ox+ow/2,h*0.84);
+  ctx.textAlign="center";
+  if(v.done){ctx.fillStyle="rgba(91,211,143,.9)";ctx.font="900 "+(h*0.07)+"px "+big;ctx.fillText("SOLID",ox+ow/2,h*0.84)}
+  else if(v.collapse){ctx.fillStyle="rgba(255,95,95,.9)";ctx.font="900 "+(h*0.07)+"px "+big;ctx.fillText("COLLAPSED",ox+ow/2,h*0.84);
     if(v.res&&v.res.fail){ctx.fillStyle="rgba(255,255,255,.8)";ctx.font="600 "+(h*0.024)+"px "+font;ctx.fillText(v.res.fail,ox+ow/2,h*0.88)}}
-  ctx.fillStyle="rgba(255,255,255,.45)";ctx.font=(h*0.02)+"px "+font;ctx.textAlign="left";ctx.fillText("Truss "+L+" m · motor "+cur.cap+" kg · "+(v.motors.length)+"/"+cur.motors,x0,h*0.95);
+  ctx.fillStyle="rgba(255,255,255,.45)";ctx.font=(h*0.02)+"px "+font;ctx.textAlign="left";ctx.fillText(L+" m truss · "+cur.cap+" kg hoists · "+v.motors.length+"/"+cur.motors+" placed",x0,h*0.95);
 }
 function draw(now){
   ctx.clearRect(0,0,W,H);
-  if(!match){drawStage(0,W,freshView(),"",now);return}
+  if(!match){drawStage(0,W,freshView(),now);return}
   var half=W/2;
-  drawStage(0,half-2,match.v[0],match.p[0].name,now);
-  if(match.p[1])drawStage(half+2,half-2,match.v[1],match.p[1].name,now);
-  else{ctx.fillStyle="#0A0E18";ctx.fillRect(half,0,half,H);ctx.fillStyle="rgba(255,255,255,.3)";ctx.font="900 "+(H*0.08)+"px "+getComputedStyle($("nmA")).fontFamily;ctx.textAlign="center";ctx.fillText("SÜREYE KARŞI",half*1.5,H*0.5)}
-  if(match.phase==="play"){var left=Math.max(0,ROUND_DUR-(now-match.t0)/1000);$("time").textContent=String(Math.ceil(left));$("time").className="t"+(left<=10?" low":"");if(left<=0)endRound("süre doldu")}
+  drawStage(0,half-2,match.v[0],now);
+  if(match.p[1])drawStage(half+2,half-2,match.v[1],now);
+  else{ctx.fillStyle="#0A0E18";ctx.fillRect(half,0,half,H);ctx.fillStyle="rgba(255,255,255,.3)";ctx.font="900 "+(H*0.08)+"px "+getComputedStyle($("nmA")).fontFamily;ctx.textAlign="center";ctx.fillText("VS THE CLOCK",half*1.5,H*0.5)}
+  if(match.phase==="play"){
+    var left=Math.max(0,ROUND_DUR-(now-match.t0)/1000);$("time").textContent=String(Math.ceil(left));$("time").className="t"+(left<=10?" low":"");
+    if(left<=0){endRound("timeout");return}
+    match.v.forEach(function(v,i){if(match.p[i]&&!v.done&&now-v.lastAct>IDLE_FORFEIT*1000){v.done=true;tell(match.p[i],"state",{locked:true,msg:"No input for "+IDLE_FORFEIT+" s — round skipped."})}});
+    if(match.v.every(function(v,i){return !match.p[i]||v.done}))endRound("done");
+  }
 }
 function loop(now){draw(now);requestAnimationFrame(loop)}requestAnimationFrame(loop);
 
-/* ---------- phone link (direct WebRTC, ntfy fallback) ---------- */
-function onJoin(id,name){
-  var p={id:id,name:String(name||"Oyuncu").slice(0,16)};
-  if(match&&side(id)>=0){if(match.phase==="play")tell(p,"level",levelPayload());return}
-  if(queue.some(function(q){return q.id===p.id}))return;
-  queue.push(p);renderQueue();
-  if(!match)nextPlayers();else tell(p,"queued","Sıradasın: "+queue.length+". Düello bitince başlıyorsun (~2 dk).");
-}
-function setLink(t){$("link").textContent=t}
+/* ---------- transport: direct WebRTC (PeerJS) with ntfy fallback; players keyed by the id the phone sends ---------- */
 var peer=null;
 function startPeer(){
   try{peer=new Peer("gs-"+topic,{debug:0,config:{iceServers:[{urls:"stun:stun.l.google.com:19302"},{urls:"stun:stun1.l.google.com:19302"}]}})}catch(e){return}
+  peer.on("open",function(){setLink("direct link ready")});
   peer.on("connection",function(c){
-    c.on("data",function(d){if(!d)return;
-      if(d.t==="join"){conns[c.peer]=c;onJoin(c.peer,d.m);setLink("doğrudan")}
-      else if(d.t==="motors")onMotors(c.peer,d.m);
-      else if(d.t==="hang")onHang(c.peer);
+    var pid=null;
+    c.on("data",function(d){
+      if(!d||!d.id)return;pid=d.id;
+      var p=players[pid];if(!p)p=players[pid]={id:pid,name:"Player",conn:null};p.conn=c;p.lastSeen=performance.now();
+      if(d.t==="join"){onJoin(pid,d.m);setLink("direct")}
+      else if(d.t==="motors")onMotors(pid,d.m);
+      else if(d.t==="hang")onHang(pid);
+      else if(d.t==="ping"){try{c.send({t:"pong",m:d.m})}catch(e){}}
     });
-    c.on("close",function(){delete conns[c.peer]});
+    c.on("close",function(){if(pid&&players[pid]&&players[pid].conn===c)onLeave(pid)});
   });
   peer.on("error",function(e){if(e&&e.type==="unavailable-id")setTimeout(startPeer,3000)});
   peer.on("disconnected",function(){try{peer.reconnect()}catch(e){}});
@@ -324,18 +337,19 @@ var seen={};
 function handle(j){
   if(!j||j.event!=="message"||seen[j.id])return;seen[j.id]=1;
   if(Date.now()-(j.time||0)*1000>60000)return;
-  var tags=j.tags||[],msg=String(j.message||"");
-  if(tags.indexOf("join")>-1){onJoin(j.title,msg);setLink("internet üzerinden")}
-  else if(tags.indexOf("motors")>-1){try{onMotors(j.title,JSON.parse(msg))}catch(e){}}
-  else if(tags.indexOf("hang")>-1)onHang(j.title);
+  var tags=j.tags||[],pid=String(j.title||"");if(!/^p[a-z0-9]{5,}$/.test(pid))return;
+  var msg=j.message;try{msg=JSON.parse(msg)}catch(e){}
+  if(tags.indexOf("join")>-1){onJoin(pid,msg);setLink("via internet (slow)")}
+  else if(tags.indexOf("motors")>-1)onMotors(pid,msg);
+  else if(tags.indexOf("hang")>-1)onHang(pid);
 }
 function listen(){var es=new EventSource(NTFY+topic+"/sse?since=10s");es.onmessage=function(ev){try{handle(JSON.parse(ev.data))}catch(e){}};es.onerror=function(){es.close();setTimeout(listen,2000)}}
 listen();
-/* demo keys: space = demo player, 1-3 place motors evenly, enter = hang */
+/* booth demo keys: Space adds a demo player (twice = duel); 1/2/3 spread left player's hoists, Shift+1/2/3 right; Enter / Shift+Enter hang */
 addEventListener("keydown",function(e){
-  if(e.key===" "){queue.push({id:"demo"+queue.length,name:queue.length?"Rakip":"Demo"});renderQueue();if(!match)nextPlayers()}
-  if(match){var pid=e.shiftKey?"demo1":"demo0";
-    if(e.key>="1"&&e.key<="3"){var n=+e.key,arr=[];for(var i=0;i<n;i++)arr.push(cur.span*(i+1)/(n+1));onMotors(pid,arr)}
+  if(e.key===" "){var id="pdemo"+(Object.keys(players).length+1);players[id]={id:id,name:id==="pdemo1"?"Demo":"Rival",conn:null};onJoin(id,players[id].name)}
+  if(match){var pid=e.shiftKey?match.p[1]&&match.p[1].id:match.p[0].id;if(!pid)return;
+    if(e.key>="1"&&e.key<="3"){var n=+e.key,arr=[];for(var i=0;i<n;i++)arr.push(Math.round(cur.span*(i+1)/(n+1)*10)/10);onMotors(pid,arr)}
     if(e.key==="Enter")onHang(pid);
   }
 });

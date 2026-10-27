@@ -1,14 +1,14 @@
 <!doctype html>
-<html lang="tr">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
 <meta name="theme-color" content="#07090D">
-<title>Asın Çökmesin — Kumanda</title>
+<title>Rig It Right — Controller</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;900&family=Figtree:wght@500;700&display=swap">
 <style>
-/* Layout: one phone screen. Top: status. Middle: the truss as a horizontal rail with load markers; drag motor chips onto it. Bottom: big HANG button. */
+/* Layout: one phone screen, no scrolling. Status on top, the truss rail with draggable hoist chips, one big HANG button. */
 :root{--bg:#07090D;--fg:#F2F0EA;--muted:#8E95A3;--accent:#F5B041;--on:#1A1203;--panel:#131824;--good:#5BD38F;--bad:#FF5F5F;
   --f-big:"Big Shoulders Display","Arial Narrow",Impact,sans-serif;--f:"Figtree",-apple-system,"Segoe UI",Roboto,sans-serif}
 *{box-sizing:border-box}
@@ -32,15 +32,16 @@ input{width:100%;min-height:54px;padding:0 14px;border:1px solid #2A3242;border-
 .load{position:absolute;top:104px;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:2px;font-size:11px;color:var(--muted);text-align:center;white-space:nowrap}
 .load i{display:block;width:3px;height:16px;background:#9AA3B2}
 .load b{display:block;padding:3px 6px;border-radius:5px;color:#fff;font-size:11px}
-.motor{position:absolute;top:22px;width:56px;height:56px;margin-left:-28px;border-radius:14px;background:var(--accent);color:var(--on);display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:900;font-family:var(--f-big);font-size:22px;line-height:1;box-shadow:0 6px 20px rgba(245,176,65,.45)}
+.motor{position:absolute;top:22px;width:56px;height:56px;margin-left:-28px;border-radius:14px;background:var(--accent);color:var(--on);display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:900;font-family:var(--f-big);font-size:22px;line-height:1;box-shadow:0 6px 20px rgba(245,176,65,.45);z-index:2}
 .motor small{font-family:var(--f);font-size:10px;font-weight:700}
 .motor.pct{background:#2E3542;color:#fff;box-shadow:none}
 .motor.pct.bad{background:var(--bad)}
 .motor.pct.ok{background:var(--good);color:var(--on)}
-.hint{text-align:center;color:var(--muted);font-size:13px}
+.hint{text-align:center;color:var(--muted);font-size:13px;min-height:18px}
 .big{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:24px;background:rgba(7,9,13,.92)}
 .big h2{margin:0;font-family:var(--f-big);font-weight:900;font-size:56px;line-height:.9;text-transform:uppercase}
 .big h2.bad{color:var(--bad)}
+.big h2.good{color:var(--good)}
 .big p{font-size:18px;color:var(--muted);margin:10px 0 0}
 .big p b{color:var(--accent);font-size:26px}
 [hidden]{display:none!important}
@@ -48,50 +49,73 @@ input{width:100%;min-height:54px;padding:0 14px;border:1px solid #2A3242;border-
 </head>
 <body>
 <div class="app">
-  <div><h1>Asın, Çökmesin</h1><div class="sub">Gala Sahne · Rigging düellosu</div></div>
+  <div><h1>Rig It Right</h1><div class="sub">Gala Sahne · rigging duel</div></div>
   <div class="card" id="join">
-    <label for="name" style="color:var(--muted);font-size:14px">Adın (skor tablosunda görünür)</label>
-    <input id="name" maxlength="16" placeholder="Ör. Harun" autocomplete="off">
-    <button class="btn" id="go" style="font-size:22px">Sıraya gir</button>
+    <label for="name" style="color:var(--muted);font-size:14px">Your name (shown on the big screen)</label>
+    <input id="name" maxlength="14" placeholder="e.g. Alex" autocomplete="off">
+    <button class="btn" id="go" style="font-size:22px">Join the duel</button>
+    <div class="hint" id="joinHint"></div>
   </div>
   <div class="card" id="state" hidden>
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
-      <div class="status" id="st">Sıradasın<small id="stSub">Sahne ekranına bak</small></div>
-      <div class="nums"><div><span id="lvl">0</span><small>TUR</small></div><div><span id="sc">0</span><small>PUAN</small></div></div>
+      <div class="status" id="st">In line<small id="stSub">Watch the big screen</small></div>
+      <div class="nums"><div><span id="lvl">–</span><small>ROUND</small></div><div><span id="sc">0</span><small>PTS</small></div></div>
     </div>
   </div>
   <div class="rig" id="rig" hidden>
-    <div class="hint" id="tip">Motorları parmağınla truss üzerinde kaydır</div>
+    <div class="hint" id="tip"></div>
     <div class="track" id="track"><div class="beam"></div></div>
-    <button class="btn" id="hang">Yükleri as</button>
+    <button class="btn" id="hang">Hang it</button>
   </div>
 </div>
-<div class="big" id="big" hidden><div><h2 id="bigT">Sağlam!</h2><p id="bigP"></p></div></div>
+<div class="big" id="big" hidden><div><h2 id="bigT"></h2><p id="bigP"></p></div></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js"></script>
 <script>
 (function(){
 "use strict";
 var NTFY="https://ntfy.sh/",$=function(id){return document.getElementById(id)};
 var m=/[#&]k=([a-z0-9-]{6,64})/.exec(location.hash||""),topic=m?m[1]:"";
-if(!topic){$("join").innerHTML="<p>Bu sayfa standdaki karekoddan açılmalı.</p>";return}
-var id="p"+Math.random().toString(36).slice(2,9),conn=null,direct=false,lvl=null,motors=[],locked=false,score=0;
-function post(msg,tags){var x=new XMLHttpRequest();x.open("POST",NTFY,true);x.setRequestHeader("Content-Type","application/json");x.send(JSON.stringify({topic:topic,message:msg,title:id,tags:tags}))}
-function send(t,m){if(conn&&conn.open){try{conn.send({t:t,m:m});return}catch(e){}}post(typeof m==="string"?m:JSON.stringify(m),[t])}
+if(!topic){$("join").innerHTML="<p>Please open this page by scanning the QR code on the big screen.</p>";return}
+/* stable player id across reloads */
+var id="";try{id=localStorage.getItem("rig.id")||""}catch(e){}
+if(!/^p[a-z0-9]{5,}$/.test(id)){id="p"+Math.random().toString(36).slice(2,10);try{localStorage.setItem("rig.id",id)}catch(e){}}
+var conn=null,peer=null,direct=false,lvl=null,motors=[],locked=false,score=0,es=null,lastFallbackSend=0,inGame=false;
+
+function post(t,m){
+  var now=Date.now();if(t==="motors"&&now-lastFallbackSend<1000)return;lastFallbackSend=now;
+  var x=new XMLHttpRequest();x.open("POST",NTFY,true);x.setRequestHeader("Content-Type","application/json");x.send(JSON.stringify({topic:topic,message:JSON.stringify(m==null?"":m),title:id,tags:[t]}));
+}
+function send(t,m){if(conn&&conn.open){try{conn.send({id:id,t:t,m:m});return}catch(e){}}post(t,m)}
+function listen(){
+  if(es){try{es.close()}catch(e){}}
+  es=new EventSource(NTFY+topic+"-"+id+"/sse?since=10s");
+  es.onmessage=function(ev){try{var j=JSON.parse(ev.data);if(j.event!=="message")return;var mm=j.message;try{mm=JSON.parse(mm)}catch(e){}feedback((j.tags||[])[0],mm)}catch(e){}};
+  es.onerror=function(){try{es.close()}catch(e){}es=null;if(inGame)setTimeout(listen,2000)};
+}
 function connect(cb){
   var done=false,fin=function(ok){if(done)return;done=true;direct=ok;cb()};
+  if(peer){try{peer.destroy()}catch(e){}peer=null}
   try{
-    var peer=new Peer(null,{debug:0,config:{iceServers:[{urls:"stun:stun.l.google.com:19302"},{urls:"stun:stun1.l.google.com:19302"}]}});
+    peer=new Peer(null,{debug:0,config:{iceServers:[{urls:"stun:stun.l.google.com:19302"},{urls:"stun:stun1.l.google.com:19302"}]}});
     peer.on("open",function(){var c=peer.connect("gs-"+topic,{reliable:true,serialization:"json"});
-      c.on("open",function(){conn=c;fin(true)});c.on("data",function(d){if(d&&d.t)feedback(d.t,d.m)});c.on("close",function(){conn=null});c.on("error",function(){fin(false)})});
-    peer.on("error",function(){fin(false)});setTimeout(function(){fin(false)},8000);
+      c.on("open",function(){conn=c;fin(true)});
+      c.on("data",function(d){if(d&&d.t)feedback(d.t,d.m)});
+      c.on("close",function(){if(conn===c){conn=null;if(inGame){$("stSub").textContent="Direct link lost — using the slow link.";listen();send("join",$("name").value.trim())}}});
+      c.on("error",function(){fin(false)})});
+    peer.on("error",function(){fin(false)});
+    setTimeout(function(){fin(false)},8000);
   }catch(e){fin(false)}
 }
-try{$("name").value=localStorage.getItem("tr.name")||""}catch(e){}
+try{$("name").value=localStorage.getItem("rig.name")||""}catch(e){}
 $("go").addEventListener("click",function(){
-  var n=$("name").value.trim();if(!n){$("name").focus();return}
-  try{localStorage.setItem("tr.name",n)}catch(e){}
-  $("go").disabled=true;$("go").textContent="Bağlanıyor…";
-  connect(function(){send("join",n);$("join").hidden=true;$("state").hidden=false;$("stSub").textContent=direct?"Sahne ekranına bak · doğrudan bağlantı":"Sahne ekranına bak · yavaş bağlantı";if(!direct)listen()});
+  var n=$("name").value.replace(/\s+/g," ").trim();if(!n){$("name").focus();$("joinHint").textContent="Type a name first.";return}
+  try{localStorage.setItem("rig.name",n)}catch(e){}
+  $("go").disabled=true;$("go").textContent="Connecting…";$("joinHint").textContent="";inGame=true;
+  connect(function(){
+    send("join",n);$("join").hidden=true;$("state").hidden=false;$("st").firstChild.nodeValue="In line";
+    $("stSub").textContent=direct?"Watch the big screen · direct link":"Watch the big screen · slow link";
+    if(!direct)listen();
+  });
 });
 
 /* ---------- rig UI ---------- */
@@ -100,40 +124,59 @@ function xToPx(x){var r=track.clientWidth;return r*0.06+(x/lvl.span)*r*0.88}
 function pxToX(px){var r=track.clientWidth;return Math.max(0,Math.min(lvl.span,(px-r*0.06)/(r*0.88)*lvl.span))}
 function buildLevel(){
   track.innerHTML='<div class="beam"></div>';locked=false;
-  for(var i=0;i<=lvl.span;i+=2){var t=document.createElement("span");t.className="tick";t.style.left=xToPx(i)+"px";t.textContent=i+"m";track.appendChild(t)}
+  for(var i=0;i<=lvl.span;i+=2){var t=document.createElement("span");t.className="tick";t.style.left=xToPx(i)+"px";t.textContent=i+" m";track.appendChild(t)}
   lvl.loads.forEach(function(l){var d=document.createElement("div");d.className="load";d.style.left=xToPx(l.x)+"px";
-    var bar=document.createElement("i");var b=document.createElement("b");b.textContent=l.kg+" kg";b.style.background=l.n.indexOf("LED")>-1?"#4C6FB5":l.n.indexOf("Hoparl")>-1?"#555B66":"#B5322E";
+    var bar=document.createElement("i");var b=document.createElement("b");b.textContent=l.kg+" kg";b.style.background=l.n.indexOf("LED")>-1?"#4C6FB5":l.n.indexOf("Speaker")>-1?"#555B66":"#B5322E";
     var s=document.createElement("span");s.textContent=l.n;d.appendChild(bar);d.appendChild(b);d.appendChild(s);track.appendChild(d)});
-  motors=[];for(var k=0;k<lvl.motors;k++)motors.push(lvl.span*(k+1)/(lvl.motors+1));
-  motors.forEach(function(x,i){var mo=document.createElement("div");mo.className="motor";mo.id="m"+i;mo.innerHTML="M"+(i+1)+"<small>"+lvl.cap+" kg</small>";mo.style.left=xToPx(x)+"px";
-    var drag=function(e){if(locked)return;var p=e.touches?e.touches[0]:e;motors[i]=pxToX(p.clientX-track.getBoundingClientRect().left);mo.style.left=xToPx(motors[i])+"px";e.preventDefault();pushMotors()};
+  motors=(lvl.start||[]).slice(0,lvl.motors);while(motors.length<lvl.motors)motors.push(lvl.span*(motors.length+1)/(lvl.motors+1));
+  motors.forEach(function(x,i){var mo=document.createElement("div");mo.className="motor";mo.id="m"+i;mo.innerHTML="H"+(i+1)+"<small>"+lvl.cap+" kg</small>";mo.style.left=xToPx(x)+"px";
+    var drag=function(e){if(locked)return;var p=e.touches?e.touches[0]:e;var nx=pxToX(p.clientX-track.getBoundingClientRect().left);
+      /* keep a minimum gap to the other hoists */
+      motors.forEach(function(ox,j){if(j!==i&&Math.abs(nx-ox)<0.6)nx=ox+(nx<ox?-0.6:0.6)});
+      motors[i]=Math.max(0,Math.min(lvl.span,nx));mo.style.left=xToPx(motors[i])+"px";e.preventDefault();pushMotors()};
     mo.addEventListener("touchstart",drag,{passive:false});mo.addEventListener("touchmove",drag,{passive:false});
     mo.addEventListener("mousedown",function(e){var mv=function(e){drag(e)};addEventListener("mousemove",mv);addEventListener("mouseup",function(){removeEventListener("mousemove",mv)},{once:true});drag(e)});
     track.appendChild(mo)});
-  $("hang").disabled=false;$("hang").textContent="Yükleri as";$("tip").textContent="Motorları parmağınla truss üzerinde kaydır. "+lvl.motors+" motor, her biri "+lvl.cap+" kg.";
-  pushMotors();
+  $("hang").disabled=false;$("hang").textContent="Hang it";$("tip").textContent=lvl.tip||("Drag the "+lvl.motors+" hoists, then hang.");
+  pushMotors(true);
 }
 var lastPush=0,pushT=null;
-function pushMotors(){clearTimeout(pushT);var now=Date.now();if(now-lastPush>80){lastPush=now;send("motors",motors.map(function(x){return Math.round(x*10)/10}))}else pushT=setTimeout(pushMotors,80)}
-$("hang").addEventListener("click",function(){if(locked||!lvl)return;locked=true;$("hang").disabled=true;$("hang").textContent="Asılıyor…";send("hang","")});
-function showLoads(R,ok){motors.forEach(function(x,i){var mo=$("m"+i);if(!mo||R[i]==null)return;var pct=Math.round(R[i]/lvl.cap*100);mo.className="motor pct "+(pct<0||pct>100?"bad":"ok");mo.innerHTML=(pct<0?"↑":pct+"%")+"<small>"+Math.round(R[i])+" kg</small>"})}
+function pushMotors(force){clearTimeout(pushT);var now=Date.now();if(force||now-lastPush>60){lastPush=now;send("motors",motors.map(function(x){return Math.round(x*10)/10}))}else pushT=setTimeout(pushMotors,60)}
+var hangWatch=null;
+$("hang").addEventListener("click",function(){
+  if(locked||!lvl)return;locked=true;$("hang").disabled=true;$("hang").textContent="Hanging…";send("hang","");
+  clearTimeout(hangWatch);hangWatch=setTimeout(function(){if(locked&&$("hang").textContent==="Hanging…"){locked=false;$("hang").disabled=false;$("hang").textContent="Hang it";$("tip").textContent="No answer from the stage. Try again."}},5000);
+});
+function resetChips(){motors.forEach(function(x,i){var mo=$("m"+i);if(mo){mo.className="motor";mo.innerHTML="H"+(i+1)+"<small>"+lvl.cap+" kg</small>"}})}
+function showLoads(R){motors.forEach(function(x,i){var mo=$("m"+i);if(!mo||R[i]==null)return;var pct=Math.round(R[i]/lvl.cap*100);mo.className="motor pct "+(pct<0||pct>100?"bad":"ok");mo.innerHTML=(pct<0?"↑":pct+"%")+"<small>"+Math.round(R[i])+" kg</small>"})}
+function setScore(s){if(typeof s==="number"&&isFinite(s)){score=s;$("sc").textContent=String(score)}}
 
-/* ---------- feedback from the screen ---------- */
+/* ---------- messages from the stage ---------- */
 function feedback(t,m){
-  if(typeof m==="string"&&(t==="level"||t==="ok"||t==="fail"||t==="end")){try{m=JSON.parse(m)}catch(e){}}
-  if(t==="queued"){$("stSub").textContent=m}
-  if(t==="hurry"){$("tip").textContent="⚡ "+m;try{navigator.vibrate&&navigator.vibrate([80,40,80,40,80])}catch(e){}}
-  if(t==="rivalfail"){$("tip").textContent="😅 "+m+" Sakin ol, doğru yere koy."}
-  if(t==="round"){locked=true;$("hang").disabled=true;$("hang").textContent=m.won?"Turu aldın!":"Tur bitti";$("stSub").textContent=m.txt;score=m.score;$("sc").textContent=String(score)}
-  if(t==="level"){lvl=m;$("state").hidden=false;$("rig").hidden=false;$("st").firstChild.nodeValue="Düello!";$("stSub").textContent=lvl.span+" m truss · "+lvl.loads.length+" yük · rakipten önce as";$("lvl").textContent=String((+$("lvl").textContent||0)+1);buildLevel();try{navigator.vibrate&&navigator.vibrate(150)}catch(e){}}
-  if(t==="ok"){score+=m.pts||0;$("sc").textContent=String(score);showLoads(m.R||[],true);$("tip").textContent=(m.first?"İlk sen astın! ":"Sağlam. ")+"En yüklü motor %"+m.maxPct+" · +"+m.pts+" puan";$("hang").textContent=m.first?"Turu aldın!":"Asıldı";try{navigator.vibrate&&navigator.vibrate([60,40,60])}catch(e){}}
-  if(t==="fail"){showLoads(m.R||[],false);$("tip").textContent="Çöktü: "+m.why;try{navigator.vibrate&&navigator.vibrate(400)}catch(e){}}
-  if(t==="retry"){locked=false;score=Math.max(0,score-30);$("sc").textContent=String(score);$("hang").disabled=false;$("hang").textContent="Tekrar as";motors.forEach(function(x,i){var mo=$("m"+i);if(mo){mo.className="motor";mo.innerHTML="M"+(i+1)+"<small>"+lvl.cap+" kg</small>"}})}
-  if(t==="end"){$("rig").hidden=true;$("bigT").textContent=m.draw?"Berabere":(m.won?"Kazandın!":"Kaybettin");$("bigT").className=m.won||m.draw?"":"bad";$("bigP").innerHTML="";var b=document.createElement("b");b.textContent=m.score+" puan"+(m.rival?" · "+m.rival+" "+m.rivalScore:"");$("bigP").appendChild(b);$("bigP").appendChild(document.createTextNode(m.won?" · Standa gel, ödülünü al.":" · Rövanş için tekrar sıraya gir."));$("big").hidden=false;
-    setTimeout(function(){$("big").hidden=true;$("state").hidden=true;$("join").hidden=false;$("go").disabled=false;$("go").textContent="Tekrar oyna";score=0;$("sc").textContent="0";$("lvl").textContent="0";lvl=null;if(conn){try{conn.close()}catch(e){}conn=null}},7000)}
+  if(typeof m==="string"&&/^[\[{]/.test(m)){try{m=JSON.parse(m)}catch(e){}}
+  clearTimeout(hangWatch);
+  if(t==="queued"){$("st").firstChild.nodeValue="In line";$("stSub").textContent=String(m||"")}
+  else if(t==="level"){lvl=m;$("state").hidden=false;$("rig").hidden=false;$("st").firstChild.nodeValue="Duel!";$("stSub").textContent=lvl.span+" m truss · "+lvl.loads.length+" loads · beat your rival";$("lvl").textContent=lvl.round+"/"+lvl.rounds;buildLevel();try{navigator.vibrate&&navigator.vibrate(150)}catch(e){}}
+  else if(t==="ok"){setScore(m.score);showLoads(m.loads||[]);$("tip").textContent=(m.first?"First to rig it! ":"Solid. ")+"Busiest hoist "+m.maxPct+"% · +"+m.pts+" pts";$("hang").textContent=m.first?"Round won!":"Rigged";try{navigator.vibrate&&navigator.vibrate([60,40,60])}catch(e){}}
+  else if(t==="fail"){showLoads(m.loads||[]);$("tip").textContent="Collapsed: "+m.why;$("hang").textContent="Collapsed";try{navigator.vibrate&&navigator.vibrate(400)}catch(e){}}
+  else if(t==="retry"){locked=false;setScore(m.score);$("hang").disabled=false;$("hang").textContent="Hang again";$("tip").textContent=m.msg||"Move the hoists and hang again.";resetChips()}
+  else if(t==="state"){locked=!!m.locked;$("hang").disabled=!!m.locked;if(!m.locked)$("hang").textContent="Hang it";$("tip").textContent=m.msg||""}
+  else if(t==="hurry"){$("tip").textContent="⚡ "+m;try{navigator.vibrate&&navigator.vibrate([80,40,80,40,80])}catch(e){}}
+  else if(t==="rivalfail"){$("tip").textContent="😅 "+m+" Keep calm, place them right."}
+  else if(t==="round"){locked=true;$("hang").disabled=true;$("hang").textContent=m.won?"Round won!":"Round over";$("stSub").textContent=m.txt||"";setScore(m.score)}
+  else if(t==="end"){
+    inGame=false;$("rig").hidden=true;
+    $("bigT").textContent=m.draw?"It's a draw":(m.won?"You win!":"You lose");$("bigT").className=m.won?"good":(m.draw?"":"bad");
+    $("bigP").innerHTML="";var b=document.createElement("b");b.textContent=m.score+" pts"+(m.rival?" · "+m.rival+" "+m.rivalScore:"");$("bigP").appendChild(b);
+    $("bigP").appendChild(document.createTextNode(m.won?" · Come to the stand and claim your prize.":" · Join again for a rematch."));
+    $("big").hidden=false;
+    setTimeout(function(){
+      $("big").hidden=true;$("state").hidden=true;$("join").hidden=false;$("go").disabled=false;$("go").textContent="Play again";
+      score=0;$("sc").textContent="0";$("lvl").textContent="–";lvl=null;$("tip").textContent="";
+      if(conn){try{conn.close()}catch(e){}conn=null}if(peer){try{peer.destroy()}catch(e){}peer=null}if(es){try{es.close()}catch(e){}es=null}
+    },7000);
+  }
 }
-var esRef=null;
-function listen(){var es=new EventSource(NTFY+topic+"-"+id+"/sse");es.onmessage=function(ev){try{var j=JSON.parse(ev.data);if(j.event==="message")feedback((j.tags||[])[0],j.message||"")}catch(e){}};es.onerror=function(){es.close();setTimeout(listen,2000)};esRef=es}
 })();
 </script>
 </body>
