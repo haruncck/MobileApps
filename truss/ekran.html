@@ -50,6 +50,16 @@ canvas{position:absolute;inset:0;width:100%;height:100%}
 .brand{position:absolute;left:2vw;bottom:2vh;font-size:2vh;color:var(--muted);letter-spacing:.14em;text-transform:uppercase}
 .brand b{color:var(--fg)}
 .flash{position:absolute;inset:0;background:var(--bad);opacity:0;pointer-events:none;transition:opacity .15s}
+.quiz{position:absolute;left:0;right:0;bottom:0;top:14vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2.4vh;padding:0 8vw;background:rgba(7,9,13,.78);text-align:center;pointer-events:none}
+.qhead{display:flex;align-items:center;gap:2vw;font-size:2.2vh;font-weight:700;letter-spacing:.16em;color:var(--muted)}
+.qhead b{font-family:var(--f-big);font-size:7vh;color:var(--accent);font-variant-numeric:tabular-nums}
+.quiz h2{margin:0;font-size:5.2vh;font-weight:700;line-height:1.2;max-width:80vw}
+.qopts{display:grid;grid-template-columns:1fr 1fr;gap:1.6vh 2vw;width:70vw}
+.qopts div{background:var(--panel);border:1px solid rgba(255,255,255,.1);border-radius:1.4vh;padding:2vh;font-family:var(--f-big);font-weight:900;font-size:5vh;line-height:1}
+.qopts div.ok{background:var(--good);color:#06130B}
+.qopts div.no{opacity:.35}
+.qsub{margin:0;font-size:2.2vh;color:var(--muted)}
+.qmark{position:absolute;top:1vh;font-size:3vh;font-weight:700}
 </style>
 </head>
 <body>
@@ -62,7 +72,7 @@ canvas{position:absolute;inset:0;width:100%;height:100%}
 </div>
 <div class="vs" id="vs" hidden></div>
 <div class="overlay" id="idle">
-  <div class="cta"><h1>Rig It<br>Right</h1><p>The rigging duel<small>Two players, same truss, same loads. Place the hoists, hang the rig. First solid rig wins the round. Best of 3.</small></p></div>
+  <div class="cta"><h1>Rig It<br>Right</h1><p>The rigging duel<small>Two players, same truss, same loads. Place the hoists, hang the rig, then answer the engineer's question. Best of 3 rounds + a final quiz.</small></p></div>
   <div class="qr" id="qr"></div>
 </div>
 <div class="overlay" id="wait" hidden>
@@ -70,6 +80,12 @@ canvas{position:absolute;inset:0;width:100%;height:100%}
   <div class="qr" id="qr2"></div>
 </div>
 <div class="round" id="round" hidden><h2 id="roundT">Round 1</h2><p id="roundP"></p></div>
+<div class="quiz" id="quiz" hidden>
+  <div class="qhead"><span>ENGINEER'S QUESTION</span><b id="qTime">20</b></div>
+  <h2 id="qText"></h2>
+  <div class="qopts" id="qOpts"></div>
+  <p class="qsub" id="qSub">Answer on your phone. Correct: +100 · fastest correct: +50 extra.</p>
+</div>
 <div class="end" id="end" hidden><h2 id="endT"></h2><p id="endP"></p><p class="s" id="endP2"></p></div>
 <div class="board" id="boardBox"><h3>Today's best</h3><ol id="board"><li class="empty">No scores yet</li></ol></div>
 <div class="brand"><b>Gala Sahne</b> · Smart Control · <span id="link">waiting for players</span></div>
@@ -87,7 +103,7 @@ var phoneUrl=location.href.replace(/[^\/]*$/,"")+"kumanda.html#k="+topic;
 ["qr","qr2"].forEach(function(id){try{var q=qrcode(0,"M");q.addData(phoneUrl);q.make();$(id).innerHTML=q.createImgTag(6,0)}catch(e){$(id).textContent=phoneUrl}});
 
 /* ---------- config ---------- */
-var ROUNDS=3,ROUND_DUR=45,WAIT_FOR_RIVAL=20,IDLE_FORFEIT=30,MIN_GAP=0.6,TRUSS_KG_PER_M=12;
+var ROUNDS=3,ROUND_DUR=45,QUIZ_DUR=20,WAIT_FOR_RIVAL=20,IDLE_FORFEIT=30,MIN_GAP=0.6,TRUSS_KG_PER_M=12;
 $("waitS").textContent="The next person to scan becomes the rival. If nobody joins within "+WAIT_FOR_RIVAL+" s you play against the clock.";
 /* levels: span (m), hoist capacity (kg), hoists, loads [{n,kg,x}], start positions chosen so the default layout fails */
 var LEVELS=[
@@ -163,8 +179,12 @@ function endRound(reason){
   $("roundT").textContent=title;$("roundP").textContent=txt;$("round").hidden=false;
   match.p.forEach(function(p,i){if(p)tell(p,"round",{won:i===w,txt:txt,score:match.score[i],wins:match.wins[i]})});
   var r=match.round;
-  setTimeout(function(){if(!match||match.round!==r)return;$("round").hidden=true;match.round++;
-    if(match.round>=ROUNDS||(pb&&(match.wins[0]===2||match.wins[1]===2)))finishMatch();else startRound()},3000);
+  setTimeout(function(){if(!match||match.round!==r)return;$("round").hidden=true;
+    startQuiz(false,function(){
+      match.round++;
+      if(match.round>=ROUNDS||(pb&&(match.wins[0]===2||match.wins[1]===2)))startQuiz(true,finishMatch);else startRound();
+    });
+  },3000);
 }
 function finishMatch(){
   var pb=match.p[1],w;
@@ -249,6 +269,65 @@ function sortedLoads(v,r){
   idx.forEach(function(o,k){out[o.i]=Math.round(r.R[k]||0)});return out;
 }
 
+/* ---------- engineer's quiz: generated from real statics on a shown rig ---------- */
+function rnd(a,b){return a+Math.floor(Math.random()*(b-a+1))}
+function shuffle(arr){for(var i=arr.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1)),t=arr[i];arr[i]=arr[j];arr[j]=t}return arr}
+function pickDistinct(correct,gen){var opts=[correct],tries=0;while(opts.length<4&&tries<60){var v=gen();tries++;if(opts.indexOf(v)<0&&v>=0)opts.push(v)}return shuffle(opts)}
+function makeQuiz(level,hard){
+  /* build a sound rig for the shown level: hoists under the loads spread out */
+  var L=level.span,ms=level.motors===2?[Math.round(L*0.2*2)/2,Math.round(L*0.8*2)/2]:[Math.round(L*0.12*2)/2,Math.round(L*0.5*2)/2,Math.round(L*0.88*2)/2];
+  var r=solve(L,ms,level.loads,level.cap),R=r.R.map(Math.round),type=hard?rnd(1,3):rnd(0,1),q;
+  if(type===0){ /* which hoist carries most */
+    var mx=0,mi=0;R.forEach(function(x,i){if(x>mx){mx=x;mi=i}});
+    q={text:"Which hoist carries the most load?",opts:ms.map(function(x,i){return "H"+(i+1)}),ans:mi,explain:"H"+(mi+1)+" carries "+mx+" kg ("+Math.round(mx/level.cap*100)+"%)"};
+    if(level.motors===2)q.opts=["H1","H2","Both equal","None"];
+  }else if(type===1){ /* kg on a hoist */
+    var hi=rnd(0,ms.length-1),c=R[hi];
+    var opts=pickDistinct(c,function(){return Math.round((c*(0.55+Math.random()*0.9))/5)*5});
+    q={text:"How many kg does hoist H"+(hi+1)+" carry? (truss weighs "+TRUSS_KG_PER_M+" kg/m)",opts:opts.map(function(v){return v+" kg"}),ans:opts.indexOf(c),explain:"H"+(hi+1)+" = "+c+" kg"};
+  }else if(type===2){ /* move a load 1 m, how does a hoist change */
+    var li=rnd(0,level.loads.length-1),dir=Math.random()<0.5?-1:1,lo=level.loads.map(function(l){return {n:l.n,kg:l.kg,x:l.x}});
+    lo[li].x=Math.max(0,Math.min(L,lo[li].x+dir));var r2=solve(L,ms,lo,level.cap),hi2=rnd(0,ms.length-1),delta=Math.round(r2.R[hi2]-r.R[hi2]);
+    var opts2=pickDistinct(delta,function(){return Math.round(delta+(rnd(-60,60)))}).map(function(v){return (v>0?"+":"")+v+" kg"});
+    q={text:"Move the "+level.loads[li].n+" 1 m to the "+(dir<0?"left":"right")+". How does H"+(hi2+1)+" change?",opts:opts2,ans:opts2.indexOf((delta>0?"+":"")+delta+" kg"),explain:"H"+(hi2+1)+" goes from "+Math.round(r.R[hi2])+" to "+Math.round(r2.R[hi2])+" kg"};
+  }else{ /* utilisation percent */
+    var hi3=rnd(0,ms.length-1),pc=Math.round(R[hi3]/level.cap*100);
+    var opts3=pickDistinct(pc,function(){return Math.max(5,Math.min(140,pc+rnd(-45,45)))}).map(function(v){return v+" %"});
+    q={text:"Hoists are rated "+level.cap+" kg. What is the utilisation of H"+(hi3+1)+"?",opts:opts3,ans:opts3.indexOf(pc+" %"),explain:"H"+(hi3+1)+": "+R[hi3]+" kg of "+level.cap+" kg = "+pc+"%"};
+  }
+  q.ms=ms;q.R=R;q.level=level;return q;
+}
+var quiz=null;
+function startQuiz(hard,after){
+  var lvl=hard?LEVELS[(levelOffset+ROUNDS)%LEVELS.length]:cur;
+  quiz={q:makeQuiz(lvl,hard),t0:performance.now(),ans:[null,null],first:-1,after:after,hard:hard};
+  cur=lvl;
+  var v=freshView();v.motors=quiz.q.ms.slice();v.hung=1;v.res=solve(lvl.span,v.motors,lvl.loads,lvl.cap);v.done=false;
+  match.v=[v,v];match.phase="quiz";
+  $("qText").textContent=quiz.q.text;var box=$("qOpts");box.innerHTML="";
+  quiz.q.opts.forEach(function(o){var d=document.createElement("div");d.textContent=o;box.appendChild(d)});
+  $("qTime").textContent=String(QUIZ_DUR);$("qSub").textContent=hard?"FINAL · Answer on your phone. Correct: +150 · fastest correct: +50 extra.":"Answer on your phone. Correct: +100 · fastest correct: +50 extra.";
+  $("quiz").hidden=false;$("lvlTxt").textContent=hard?"FINAL QUIZ":"QUIZ "+(match.round+1);
+  match.p.forEach(function(p){if(p)tell(p,"quiz",{text:quiz.q.text,opts:quiz.q.opts,dur:QUIZ_DUR,hard:hard})});
+}
+function onAnswer(id,idx){
+  var i=side(id);if(i<0||!match||match.phase!=="quiz"||!quiz||quiz.ans[i]!=null)return;
+  idx=parseInt(idx,10);if(!(idx>=0&&idx<4))return;quiz.ans[i]=idx;
+  var ok=idx===quiz.q.ans,pts=0;
+  if(ok){pts=(quiz.hard?150:100)+(quiz.first<0?50:0);if(quiz.first<0)quiz.first=i;match.score[i]+=pts;$(i?"scB":"scA").textContent=String(match.score[i])}
+  tell(match.p[i],"answered",{ok:ok,pts:pts,wait:true});
+  var all=match.p.every(function(p,k){return !p||quiz.ans[k]!=null});
+  if(all)endQuiz();
+}
+function endQuiz(){
+  if(!match||match.phase!=="quiz")return;match.phase="quizend";
+  var q=quiz.q;Array.prototype.forEach.call($("qOpts").children,function(d,k){d.className=k===q.ans?"ok":"no"});
+  $("qSub").textContent=q.explain;
+  match.p.forEach(function(p,i){if(p)tell(p,"quizresult",{ok:quiz.ans[i]===q.ans,correct:q.opts[q.ans],explain:q.explain,score:match.score[i]})});
+  var after=quiz.after;
+  setTimeout(function(){$("quiz").hidden=true;quiz=null;if(match)after()},3800);
+}
+
 /* ---------- drawing ---------- */
 function drawStage(ox,ow,v,now){
   var w=W,h=H,dpr=devicePixelRatio,L=cur.span,x0=ox+ow*0.08,x1=ox+ow*0.92,sc=(x1-x0)/L,yT=h*0.5,font=getComputedStyle(document.body).fontFamily,big=getComputedStyle($("nmA")).fontFamily;
@@ -260,7 +339,7 @@ function drawStage(ox,ow,v,now){
   var res=v.res,ms=v.motors.slice().sort(function(a,b){return a-b});
   var shakeX=v.shake?Math.sin(now/25)*h*0.006*v.shake:0;if(v.shake>0)v.shake=Math.max(0,v.shake-0.012);
   function sag(xm){
-    if(!v.hung||!res)return 0;var amp=h*0.07*Math.min(1.4,res.defl);
+    if(!v.hung||!res||(match&&match.phase==="quiz"))return 0;var amp=h*0.07*Math.min(1.4,res.defl);
     if(v.collapse){var t=Math.min(1,(now-v.collapseAt)/900);return amp*2*t+(ms.length?Math.abs(xm-(ms[0]+ms[ms.length-1])/2)*sc*0.12*t:h*0.2*t)}
     if(ms.length<2)return amp;
     if(xm<=ms[0]){var o=ms[0]-xm;return amp*(o/(L*0.3))*(o/(L*0.3))}
@@ -276,12 +355,13 @@ function drawStage(ox,ow,v,now){
     var X=x0+xm*sc+shakeX,Y=yT+sag(xm);
     ctx.strokeStyle="#9AA3B2";ctx.lineWidth=2*dpr;ctx.setLineDash([5*dpr,4*dpr]);ctx.beginPath();ctx.moveTo(X,h*0.216);ctx.lineTo(X,Y);ctx.stroke();ctx.setLineDash([]);
     ctx.fillStyle="#2E3542";ctx.fillRect(X-h*0.02,h*0.216,h*0.04,h*0.06);ctx.fillStyle="#F5B041";ctx.fillRect(X-h*0.02,h*0.216,h*0.04,h*0.01);
-    var pct=res&&res.R[i]!=null&&isFinite(res.R[i])?res.R[i]/cur.cap*100:null;
+    var pct=res&&res.R[i]!=null&&isFinite(res.R[i])&&!(match&&match.phase==="quiz")?res.R[i]/cur.cap*100:null;
     var col=pct==null?"rgba(255,255,255,.25)":pct<0?"#FF5F5F":pct>100?"#FF5F5F":pct>80?"#FFB454":"#5BD38F";
     var bw=h*0.026,bh=h*0.1,bx=X-bw/2,by=h*0.285;
     ctx.fillStyle="rgba(255,255,255,.08)";ctx.fillRect(bx,by,bw,bh);
     if(pct!=null){var fh=Math.min(1,Math.max(0,pct)/100)*bh;ctx.fillStyle=col;ctx.fillRect(bx,by+bh-fh,bw,fh)}
     ctx.fillStyle=col;ctx.font="bold "+(h*0.02)+"px "+font;ctx.textAlign="center";ctx.fillText(pct==null?"H"+(i+1):(pct<0?"LIFTING":Math.round(pct)+"%"),X,by+bh+h*0.028);
+    if(match&&match.phase==="quiz"){ctx.fillStyle="rgba(255,255,255,.7)";ctx.font="bold "+(h*0.022)+"px "+font;ctx.fillText("H"+(i+1)+" @ "+xm+" m",X,by+bh+h*0.06)}
   });
   cur.loads.forEach(function(l){
     var X=x0+l.x*sc+shakeX,Y=yT+d+sag(l.x);ctx.globalAlpha=v.hung?1:0.35;
@@ -303,6 +383,7 @@ function draw(now){
   drawStage(0,half-2,match.v[0],now);
   if(match.p[1])drawStage(half+2,half-2,match.v[1],now);
   else{ctx.fillStyle="#0A0E18";ctx.fillRect(half,0,half,H);ctx.fillStyle="rgba(255,255,255,.3)";ctx.font="900 "+(H*0.08)+"px "+getComputedStyle($("nmA")).fontFamily;ctx.textAlign="center";ctx.fillText("VS THE CLOCK",half*1.5,H*0.5)}
+  if(match.phase==="quiz"&&quiz){var ql=Math.max(0,QUIZ_DUR-(now-quiz.t0)/1000);$("qTime").textContent=String(Math.ceil(ql));$("time").textContent=String(Math.ceil(ql));if(ql<=0)endQuiz()}
   if(match.phase==="play"){
     var left=Math.max(0,ROUND_DUR-(now-match.t0)/1000);$("time").textContent=String(Math.ceil(left));$("time").className="t"+(left<=10?" low":"");
     if(left<=0){endRound("timeout");return}
@@ -325,6 +406,7 @@ function startPeer(){
       if(d.t==="join"){onJoin(pid,d.m);setLink("direct")}
       else if(d.t==="motors")onMotors(pid,d.m);
       else if(d.t==="hang")onHang(pid);
+      else if(d.t==="answer")onAnswer(pid,d.m);
       else if(d.t==="ping"){try{c.send({t:"pong",m:d.m})}catch(e){}}
     });
     c.on("close",function(){if(pid&&players[pid]&&players[pid].conn===c)onLeave(pid)});
@@ -342,6 +424,7 @@ function handle(j){
   if(tags.indexOf("join")>-1){onJoin(pid,msg);setLink("via internet (slow)")}
   else if(tags.indexOf("motors")>-1)onMotors(pid,msg);
   else if(tags.indexOf("hang")>-1)onHang(pid);
+  else if(tags.indexOf("answer")>-1)onAnswer(pid,msg);
 }
 function listen(){var es=new EventSource(NTFY+topic+"/sse?since=10s");es.onmessage=function(ev){try{handle(JSON.parse(ev.data))}catch(e){}};es.onerror=function(){es.close();setTimeout(listen,2000)}}
 listen();
@@ -351,6 +434,7 @@ addEventListener("keydown",function(e){
   if(match){var pid=e.shiftKey?match.p[1]&&match.p[1].id:match.p[0].id;if(!pid)return;
     if(e.key>="1"&&e.key<="3"){var n=+e.key,arr=[];for(var i=0;i<n;i++)arr.push(Math.round(cur.span*(i+1)/(n+1)*10)/10);onMotors(pid,arr)}
     if(e.key==="Enter")onHang(pid);
+    if(/^[a-d]$/i.test(e.key))onAnswer(pid,"abcd".indexOf(e.key.toLowerCase()));
   }
 });
 })();
