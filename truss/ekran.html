@@ -159,12 +159,12 @@ function endRound(reason){
   $("wA").textContent=dots(match.wins[0]);$("wB").textContent=pb?dots(match.wins[1]):"";
   var title,txt;
   if(w<0){title=reason==="timeout"?"Time's up":"Nobody rigged it";txt="No points this round."}
-  else{title=match.p[w].name;txt=pb?match.p[w].name+" takes the round":"Round complete"}
+  else{title=pb?match.p[w].name:"Solid!";txt=pb?match.p[w].name+" takes the round":"Round "+(match.round+1)+" complete"}
   $("roundT").textContent=title;$("roundP").textContent=txt;$("round").hidden=false;
   match.p.forEach(function(p,i){if(p)tell(p,"round",{won:i===w,txt:txt,score:match.score[i],wins:match.wins[i]})});
   var r=match.round;
   setTimeout(function(){if(!match||match.round!==r)return;$("round").hidden=true;match.round++;
-    if(match.round>=ROUNDS||match.wins[0]===2||(pb&&match.wins[1]===2))finishMatch();else startRound()},3000);
+    if(match.round>=ROUNDS||(pb&&(match.wins[0]===2||match.wins[1]===2)))finishMatch();else startRound()},3000);
 }
 function finishMatch(){
   var pb=match.p[1],w;
