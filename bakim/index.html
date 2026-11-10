@@ -253,13 +253,13 @@ async function buildPDF(f){
   const phs=[];f.items.forEach((it,i)=>it.ph.forEach(id=>phs.push({i,id})));
   if(phs.length){
     doc.addPage();y=16;font("bold",13);doc.text("Fotoğraflar — "+(f.kurum||"")+" · "+fmtD(f.date),L,y);y+=6;
-    const cw=(Wd-6)/2;let col=0;
+    const cw=(Wd-6)/2,ok=[];
     for(const p of phs){const d=await idb.get(p.id);if(!d)continue;const im=await new Promise(r=>{const i=new Image();i.onload=()=>r(i);i.onerror=()=>r(null);i.src=d});if(!im)continue;
-      let w=cw,h=w*im.naturalHeight/im.naturalWidth;if(h>90){h=90;w=h*im.naturalWidth/im.naturalHeight}
-      if(col===0&&y+h+10>285){doc.addPage();y=16}
-      const x=L+col*(cw+6);doc.addImage(d,"JPEG",x,y,w,h,undefined,"FAST");font("normal",9);doc.text(doc.splitTextToSize((p.i+1)+". "+f.items[p.i].t,cw)[0],x,y+h+4);
-      if(col===1){y+=Math.max(h,60)+10;col=0}else{col=1;p._h=h}
-    }
+      let w=cw,h=w*im.naturalHeight/im.naturalWidth;if(h>90){h=90;w=h*im.naturalWidth/im.naturalHeight}ok.push({...p,d,w,h})}
+    for(let r=0;r<ok.length;r+=2){const row=ok.slice(r,r+2),rh=Math.max(...row.map(p=>p.h));
+      if(y+rh+6>285){doc.addPage();y=16}
+      row.forEach((p,c)=>{const x=L+c*(cw+6);doc.addImage(p.d,"JPEG",x,y,p.w,p.h,undefined,"FAST");font("normal",9);doc.text(doc.splitTextToSize((p.i+1)+". "+f.items[p.i].t,cw)[0],x,y+p.h+4)});
+      y+=rh+10}
   }
   return doc;
 }
