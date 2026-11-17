@@ -3,7 +3,7 @@ import { ListX, Search } from 'lucide-react';
 import { useStore } from '../store/AppStore';
 import { useUI } from '../ui-context';
 import { JobRow, PaymentRow } from '../components/common';
-import { Card, EmptyState, Input, Segmented, Select } from '../components/ui';
+import { EmptyState, Input, Ledger, Segmented, Select } from '../components/ui';
 import { fmt } from '../lib/format';
 import { rateOf } from '../lib/money';
 import type { Currency, Job, Payment } from '../types';
@@ -50,11 +50,11 @@ export function Movements() {
 
   return (
     <div>
-      <h1 className="mb-4 text-2xl font-bold tracking-tight text-white">Hareketler</h1>
+      <h1 className="mb-4 text-[28px] font-bold text-graphite">Hareketler</h1>
       <div className="grid gap-2 md:grid-cols-[1fr_auto_auto_auto]">
         <div className="relative">
-          <Search size={18} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
-          <Input className="pl-10" placeholder="İş, açıklama veya müşteri ara…" value={q} onChange={(e) => setQ(e.target.value)} />
+          <Search size={18} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-faint" />
+          <Input type="search" className="pl-10" placeholder="İş, not veya müşteri adıyla ara" value={q} onChange={(e) => setQ(e.target.value)} />
         </div>
         <Segmented
           className="md:w-64"
@@ -65,6 +65,7 @@ export function Movements() {
             { value: 'job', label: 'İşler' },
             { value: 'pay', label: 'Ödemeler' },
           ]}
+          label="Kayıt türü"
         />
         <div className="grid grid-cols-2 gap-2 md:contents">
           <Select value={cid} onChange={(e) => setCid(e.target.value)} className="md:w-44">
@@ -90,22 +91,23 @@ export function Movements() {
       </div>
 
       {groups.length === 0 ? (
-        <EmptyState icon={<ListX size={26} />} title="Kayıt bulunamadı" text="Filtreleri değiştirmeyi deneyin." />
+        <Ledger className="mt-4"><EmptyState icon={<ListX size={28} />} title="Kayıt bulunamadı" text="Aramayı veya filtreleri değiştirin." /></Ledger>
       ) : (
         groups.map(([key, g]) => {
           const [y, m] = key.split('-').map(Number);
           return (
-            <section key={key} className="mt-5">
+            <section key={key} className="mt-6">
               <div className="mb-2 flex items-baseline justify-between px-1">
-                <h3 className="text-sm font-semibold capitalize text-zinc-300">
-                  {new Date(y, m - 1, 1).toLocaleDateString('tr-TR', { month: 'long', year: 'numeric' })}
+                <h3 className="text-[17px] font-bold capitalize text-graphite">
+                  {y && m ? new Date(y, m - 1, 1).toLocaleDateString('tr-TR', { month: 'long', year: 'numeric' }) : 'Tarihi olmayan kayıtlar'}
                 </h3>
-                <div className="num flex gap-3 text-xs">
-                  {g.jobsTRY > 0 && <span className="text-amber-300/80">İş {fmt(g.jobsTRY, 'TRY')}</span>}
-                  {g.paysTRY > 0 && <span className="text-emerald-300/80">Tahsilat {fmt(g.paysTRY, 'TRY')}</span>}
+                <div className="num flex gap-3 text-[14px] font-semibold">
+                  {g.jobsTRY > 0 && <span className="text-graphite">İş {fmt(Math.round(g.jobsTRY), 'TRY')}</span>}
+                  {g.paysTRY > 0 && <span className="text-paid">Alınan {fmt(Math.round(g.paysTRY), 'TRY')}</span>}
                 </div>
               </div>
-              <Card className="divide-y divide-white/5 overflow-hidden">
+              <Ledger>
+                <div className="rows">
                 {g.items.map((x) =>
                   x.kind === 'job' ? (
                     <JobRow key={x.item.id} job={x.item} customerName={custName.get(x.item.customerId)} onClick={() => open({ kind: 'job', id: x.item.id })} />
@@ -113,7 +115,8 @@ export function Movements() {
                     <PaymentRow key={x.item.id} p={x.item} customerName={custName.get(x.item.customerId)} onClick={() => open({ kind: 'payment', id: x.item.id })} />
                   ),
                 )}
-              </Card>
+                </div>
+              </Ledger>
             </section>
           );
         })

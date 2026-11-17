@@ -1,15 +1,16 @@
 import { useMemo, useState } from 'react';
-import { ArrowLeft, Briefcase, Pencil, Phone, Plus, Search, Users, Wallet } from 'lucide-react';
+import { ArrowLeft, ChevronRight, Pencil, Phone, Search, Users } from 'lucide-react';
 import { useStore } from '../store/AppStore';
 import { useUI } from '../ui-context';
 import { balanceState, customerLedger, EPS } from '../lib/money';
 import type { BalanceState } from '../lib/money';
-import { fmt, fmtBreakdown } from '../lib/format';
+import { fmt, fmtDate, fmtWords } from '../lib/format';
 import { CURRENCIES } from '../types';
+import type { Money } from '../types';
 import { BalanceBadge, JobRow, MoneyChips, PaymentRow } from '../components/common';
-import { Button, Card, EmptyState, IconButton, Input, Segmented, SectionTitle, cx } from '../components/ui';
+import { Button, EmptyState, IconButton, Input, Ledger, Segmented, SectionTitle, cx } from '../components/ui';
 
-type Filter = 'all' | 'alacak' | 'kapandi';
+type Filter = 'borclu' | 'all';
 
 export function Customers() {
   const { route } = useUI();
@@ -20,88 +21,97 @@ function CustomerList() {
   const { data } = useStore();
   const { go, open } = useUI();
   const [q, setQ] = useState('');
-  const [filter, setFilter] = useState<Filter>('all');
+  const [filter, setFilter] = useState<Filter>('borclu');
 
   const rows = useMemo(() => {
     const term = q.trim().toLocaleLowerCase('tr');
     return data.customers
       .map((c) => {
         const l = customerLedger(data, c.id);
-        return { c, l, state: balanceState(l.balance) as BalanceState, jobs: data.jobs.filter((j) => j.customerId === c.id).length };
+        const dates = [...data.jobs.filter((j) => j.customerId === c.id).map((j) => j.date), ...data.payments.filter((p) => p.customerId === c.id).map((p) => p.date)].sort();
+        return { c, l, state: balanceState(l.balance) as BalanceState, last: dates[dates.length - 1] };
       })
       .filter((x) => !term || x.c.name.toLocaleLowerCase('tr').includes(term))
-      .filter((x) => filter === 'all' || (filter === 'alacak' ? x.state === 'alacak' : x.state !== 'alacak'))
+      // Henüz kaydı olmayan yeni müşteriler de 'Borcu olanlar' listesinde görünür
+      .filter((x) => filter === 'all' || term || x.state !== 'kapandi' || !x.last)
       .sort((a, b) => b.l.balanceTRY - a.l.balanceTRY || a.c.name.localeCompare(b.c.name, 'tr'));
   }, [data, q, filter]);
 
   return (
     <div>
-      <header className="mb-4 flex items-center justify-between">
-        <h1 className="text-2xl font-bold tracking-tight text-white">Müşteriler</h1>
+      <header className="mb-4 flex items-center justify-between gap-3">
+        <h1 className="text-[28px] font-bold text-graphite">Müşteriler</h1>
         <Button variant="secondary" onClick={() => open({ kind: 'customer' })}>
-          <Plus size={18} /> Müşteri
+          Yeni müşteri
         </Button>
       </header>
-      <div className="relative mb-3">
-        <Search size={18} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
-        <Input className="pl-10" placeholder="Müşteri ara…" value={q} onChange={(e) => setQ(e.target.value)} />
+      <div className="mb-3 grid gap-2 sm:grid-cols-[1fr_auto]">
+        <div className="relative">
+          <Search size={18} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-faint" />
+          <Input className="pl-10" placeholder="Müşteri adıyla ara" value={q} onChange={(e) => setQ(e.target.value)} type="search" />
+        </div>
+        <Segmented
+          className="sm:w-64"
+          value={filter}
+          onChange={setFilter}
+          label="Müşteri filtresi"
+          options={[
+            { value: 'borclu', label: 'Borcu olanlar' },
+            { value: 'all', label: 'Hepsi' },
+          ]}
+        />
       </div>
-      <Segmented
-        className="mb-4"
-        value={filter}
-        onChange={setFilter}
-        options={[
-          { value: 'all', label: 'Tümü' },
-          { value: 'alacak', label: 'Alacaklı' },
-          { value: 'kapandi', label: 'Kapanan' },
-        ]}
-      />
 
       {rows.length === 0 ? (
-        <EmptyState icon={<Users size={26} />} title="Müşteri bulunamadı" text="Yeni bir cari kart oluşturarak başlayın." action={<Button variant="primary" onClick={() => open({ kind: 'customer' })}><Plus size={18} /> Yeni Müşteri</Button>} />
+        <Ledger>
+          <EmptyState
+            icon={<Users size={28} />}
+            title={q ? 'Bu isimde müşteri yok' : filter === 'borclu' && data.customers.length ? 'Borcu olan müşteri yok' : 'Henüz müşteri yok'}
+            action={
+              <Button variant="primary" onClick={() => open({ kind: 'customer' })}>
+                Müşteri ekle
+              </Button>
+            }
+          />
+        </Ledger>
       ) : (
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {rows.map(({ c, l, state, jobs }) => (
-            <Card key={c.id} onClick={() => go({ tab: 'customers', customerId: c.id })} className="p-4">
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex min-w-0 items-center gap-3">
-                  <Avatar name={c.name} state={state} />
-                  <div className="min-w-0">
-                    <div className="truncate font-semibold text-white">{c.name}</div>
-                    <div className="text-xs text-zinc-500">{jobs} iş kaydı</div>
-                  </div>
-                </div>
-                <BalanceBadge state={state} />
-              </div>
-              <div className="mt-3 flex items-end justify-between gap-2 border-t border-white/5 pt-3">
-                <div>
-                  <div className="mb-0.5 text-[11px] uppercase tracking-wide text-zinc-600">Kalan</div>
-                  <MoneyChips m={l.balance} />
-                </div>
-                <div className="text-right">
-                  <div className="num text-sm text-zinc-400">{fmt(l.balanceTRY, 'TRY')}</div>
-                  <div className="text-[10px] text-zinc-600">TL karşılığı</div>
-                </div>
-              </div>
-            </Card>
-          ))}
-        </div>
+        <Ledger>
+          <div className="rows">
+            {rows.map(({ c, l, state, last }) => (
+              <button
+                key={c.id}
+                type="button"
+                onClick={() => go({ tab: 'customers', customerId: c.id })}
+                className="flex w-full items-center gap-3 px-3 py-3.5 text-left transition-colors hover:bg-ink-soft/40 active:bg-ink-soft"
+              >
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[18px] font-semibold text-graphite">{c.name}</span>
+                  <span className="block text-[14px] text-pencil">{last ? `Son kayıt ${fmtDate(last)}` : 'Kayıt yok'}</span>
+                </span>
+                {state === 'kapandi' ? <BalanceBadge state={state} /> : <MoneyChips m={l.balance} />}
+                <ChevronRight size={18} className="shrink-0 text-faint" />
+              </button>
+            ))}
+          </div>
+        </Ledger>
       )}
     </div>
   );
 }
 
-function Avatar({ name, state }: { name: string; state: BalanceState }) {
-  const initials = name.split(/\s+/).slice(0, 2).map((w) => w[0]?.toLocaleUpperCase('tr')).join('');
+/** Para birimi bazında tutarları tek satırda yazar: "₺1.227.700" veya "€2.156,30 ve $300" */
+function Amounts({ m, sign = '', cls }: { m: Money; sign?: string; cls?: string }) {
+  const list = CURRENCIES.filter((c) => Math.abs(m[c]) > EPS);
+  if (!list.length) return <span className={cx('figure', cls)}>{fmt(0, 'TRY')}</span>;
   return (
-    <div
-      className={cx(
-        'grid h-11 w-11 shrink-0 place-items-center rounded-xl text-sm font-bold',
-        state === 'alacak' ? 'bg-amber-400/15 text-amber-300' : state === 'fazla' ? 'bg-sky-400/15 text-sky-300' : 'bg-slate-400/15 text-slate-300',
-      )}
-    >
-      {initials}
-    </div>
+    <span className="flex flex-col items-end">
+      {list.map((c) => (
+        <span key={c} className={cx('figure leading-tight', cls)}>
+          {sign}
+          {fmt(m[c], c)}
+        </span>
+      ))}
+    </span>
   );
 }
 
@@ -111,122 +121,152 @@ function CustomerDetail({ id }: { id: string }) {
   const [tab, setTab] = useState<'jobs' | 'pays'>('jobs');
   const c = data.customers.find((x) => x.id === id);
 
-  const jobs = useMemo(() => data.jobs.filter((j) => j.customerId === id).sort((a, b) => b.date.localeCompare(a.date)), [data.jobs, id]);
-  const pays = useMemo(() => data.payments.filter((p) => p.customerId === id).sort((a, b) => b.date.localeCompare(a.date)), [data.payments, id]);
+  const order = (a: { date: string }, b: { date: string }, ia: number, ib: number) => b.date.localeCompare(a.date) || ib - ia;
+  const jobs = useMemo(
+    () =>
+      data.jobs
+        .map((j, i) => ({ j, i }))
+        .filter(({ j }) => j.customerId === id)
+        .sort((a, b) => order(a.j, b.j, a.i, b.i))
+        .map(({ j }) => j),
+    [data.jobs, id],
+  );
+  const pays = useMemo(
+    () =>
+      data.payments
+        .map((p, i) => ({ p, i }))
+        .filter(({ p }) => p.customerId === id)
+        .sort((a, b) => order(a.p, b.p, a.i, b.i))
+        .map(({ p }) => p),
+    [data.payments, id],
+  );
 
   if (!c)
-    return <EmptyState icon={<Users size={26} />} title="Müşteri bulunamadı" action={<Button onClick={() => go({ tab: 'customers' })}>Listeye dön</Button>} />;
+    return (
+      <EmptyState
+        icon={<Users size={28} />}
+        title="Müşteri bulunamadı"
+        action={<Button onClick={() => go({ tab: 'customers' })}>Müşteri listesine dön</Button>}
+      />
+    );
 
   const l = customerLedger(data, id);
   const state = balanceState(l.balance);
-  const usedCurrencies = CURRENCIES.filter((k) => Math.abs(l.jobs[k]) > EPS || Math.abs(l.credited[k]) > EPS);
-
-  const footer = (label: string, m: typeof l.jobs, tone: string) => (
-    <div className="flex items-center justify-between bg-white/[0.03] px-4 py-3">
-      <span className="text-sm font-semibold text-zinc-300">{label}</span>
-      <span className={cx('num text-right font-bold', tone)}>{fmtBreakdown(m, { hideZero: true })}</span>
-    </div>
-  );
+  const hasForeign = CURRENCIES.some((k) => k !== 'TRY' && Math.abs(l.balance[k]) > EPS);
 
   const jobsList = (
-    <Card className="divide-y divide-white/5 overflow-hidden">
-      {jobs.length ? (
-        jobs.map((j) => <JobRow key={j.id} job={j} onClick={() => open({ kind: 'job', id: j.id })} />)
-      ) : (
-        <EmptyState icon={<Briefcase size={24} />} title="Henüz iş yok" action={<Button variant="primary" onClick={() => open({ kind: 'job', customerId: id })}><Plus size={18} /> İş Ekle</Button>} />
+    <Ledger>
+      <div className="rows">
+        {jobs.length ? (
+          jobs.map((j) => <JobRow key={j.id} job={j} onClick={() => open({ kind: 'job', id: j.id })} />)
+        ) : (
+          <p className="px-3 py-4 text-[15px] text-pencil">Bu müşteriye henüz iş yazılmadı.</p>
+        )}
+      </div>
+      {jobs.length > 0 && (
+        <div className="flex items-start justify-between border-t-2 border-graphite/80 px-3 py-3">
+          <span className="text-[16px] font-bold">Toplam</span>
+          <Amounts m={l.jobs} cls="text-[18px] font-bold text-graphite" />
+        </div>
       )}
-      {jobs.length > 0 && footer('Toplam', l.jobs, 'text-zinc-100')}
-    </Card>
+    </Ledger>
   );
   const paysList = (
-    <Card className="divide-y divide-white/5 overflow-hidden">
-      {pays.length ? (
-        pays.map((p) => <PaymentRow key={p.id} p={p} onClick={() => open({ kind: 'payment', id: p.id })} />)
-      ) : (
-        <EmptyState icon={<Wallet size={24} />} title="Henüz ödeme yok" action={<Button variant="success" onClick={() => open({ kind: 'payment', customerId: id })}><Plus size={18} /> Ödeme Ekle</Button>} />
+    <Ledger>
+      <div className="rows">
+        {pays.length ? (
+          pays.map((p) => <PaymentRow key={p.id} p={p} onClick={() => open({ kind: 'payment', id: p.id })} />)
+        ) : (
+          <p className="px-3 py-4 text-[15px] text-pencil">Bu müşteriden henüz ödeme alınmadı.</p>
+        )}
+      </div>
+      {pays.length > 0 && (
+        <div className="flex items-start justify-between border-t-2 border-graphite/80 px-3 py-3">
+          <span className="text-[16px] font-bold">Alınan</span>
+          <Amounts m={l.credited} cls="text-[18px] font-bold text-paid" />
+        </div>
       )}
-      {pays.length > 0 && footer('Alınan', l.credited, 'text-emerald-300')}
-    </Card>
+    </Ledger>
   );
 
   return (
     <div>
-      <header className="mb-4 flex items-center gap-2">
+      <header className="mb-3 flex items-center gap-1">
         <IconButton onClick={back} aria-label="Geri" className="-ml-2">
-          <ArrowLeft size={22} />
+          <ArrowLeft size={24} />
         </IconButton>
         <div className="min-w-0 flex-1">
-          <h1 className="truncate text-xl font-bold text-white">{c.name}</h1>
-          <div className="flex items-center gap-2 text-xs text-zinc-500">
-            <BalanceBadge state={state} />
-            {c.phone && (
-              <a href={`tel:${c.phone}`} className="inline-flex items-center gap-1 hover:text-zinc-300">
-                <Phone size={12} /> {c.phone}
-              </a>
-            )}
-          </div>
+          <h1 className="truncate text-[26px] font-bold leading-tight text-graphite">{c.name}</h1>
+          {c.phone && (
+            <a href={`tel:${c.phone}`} className="num inline-flex items-center gap-1 text-[15px] text-ink">
+              <Phone size={14} /> {c.phone}
+            </a>
+          )}
         </div>
-        <IconButton onClick={() => open({ kind: 'customer', id })} aria-label="Düzenle">
-          <Pencil size={18} />
+        <IconButton onClick={() => open({ kind: 'customer', id })} aria-label="Müşteriyi düzenle">
+          <Pencil size={20} />
         </IconButton>
       </header>
 
-      {/* Bakiye özeti */}
-      <Card className="overflow-hidden">
-        <div className="bg-gradient-to-br from-amber-500/10 to-transparent p-4">
-          <div className="text-xs font-medium uppercase tracking-wide text-zinc-400">Net Kalan Bakiye</div>
-          <div className="mt-1">
-            <MoneyChips m={l.balance} />
+      {/* Hesap özeti – Excel'deki Toplam / Alınan / Kalan */}
+      <Ledger>
+        <div className="rows">
+          <div className="flex items-start justify-between gap-3 px-3 py-3">
+            <span className="text-[16px] font-semibold text-pencil">Yapılan işler</span>
+            <Amounts m={l.jobs} cls="text-[20px] font-semibold text-graphite" />
           </div>
-          <div className="num mt-1 text-sm text-zinc-400">
-            TL karşılığı: <span className={cx('font-semibold', l.balanceTRY > EPS ? 'text-amber-300' : l.balanceTRY < -EPS ? 'text-sky-300' : 'text-zinc-300')}>{fmt(l.balanceTRY, 'TRY')}</span>
+          <div className="flex items-start justify-between gap-3 px-3 py-3">
+            <span className="text-[16px] font-semibold text-pencil">Alınan</span>
+            <Amounts m={l.credited} cls="text-[20px] font-semibold text-paid" />
           </div>
         </div>
-        {usedCurrencies.length > 0 && (
-          <table className="num w-full text-sm">
-            <thead>
-              <tr className="border-y border-white/5 text-[11px] uppercase tracking-wide text-zinc-500">
-                <th className="px-4 py-2 text-left font-medium">Döviz</th>
-                <th className="px-2 py-2 text-right font-medium">İş</th>
-                <th className="px-2 py-2 text-right font-medium">Alınan</th>
-                <th className="px-4 py-2 text-right font-medium">Kalan</th>
-              </tr>
-            </thead>
-            <tbody>
-              {usedCurrencies.map((k) => (
-                <tr key={k} className="border-b border-white/5 last:border-0">
-                  <td className="px-4 py-2 text-zinc-400">{k}</td>
-                  <td className="px-2 py-2 text-right text-zinc-200">{fmt(l.jobs[k], k)}</td>
-                  <td className="px-2 py-2 text-right text-emerald-300">{fmt(l.credited[k], k)}</td>
-                  <td className={cx('px-4 py-2 text-right font-semibold', l.balance[k] > EPS ? 'text-amber-300' : l.balance[k] < -EPS ? 'text-sky-300' : 'text-zinc-500')}>
-                    {fmt(l.balance[k], k)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </Card>
+        <div className="flex items-start justify-between gap-3 border-t-2 border-graphite/80 px-3 pb-4 pt-3">
+          <span>
+            <span className="block text-[18px] font-bold text-graphite">{state === 'fazla' ? 'Fazla ödedi' : 'Kalan borcu'}</span>
+            {state === 'kapandi' && <span className="text-[14px] text-pencil">Hesap kapalı</span>}
+          </span>
+          <span className="flex flex-col items-end">
+            {CURRENCIES.filter((k) => Math.abs(l.balance[k]) > EPS).map((k) => (
+              <span key={k} className={cx('figure total-rule text-[30px] font-bold leading-tight', l.balance[k] > 0 ? 'text-due' : 'text-advance')}>
+                {fmt(Math.abs(l.balance[k]), k)}
+                {l.balance[k] < 0 && state === 'alacak' && <span className="ml-1 text-[14px] font-semibold">fazla ödendi</span>}
+              </span>
+            ))}
+            {state === 'kapandi' && <span className="figure text-[30px] font-bold text-faint">{fmt(0, 'TRY')}</span>}
+            {hasForeign && (
+              <span className="num mt-1 text-[13px] text-pencil">Bugünkü kurla {fmt(Math.round(Math.abs(l.balanceTRY)), 'TRY')}</span>
+            )}
+          </span>
+        </div>
+      </Ledger>
 
       <div className="mt-3 grid grid-cols-2 gap-2">
-        <Button variant="primary" onClick={() => open({ kind: 'job', customerId: id })}>
-          <Briefcase size={18} /> İş Ekle
-        </Button>
         <Button variant="success" onClick={() => open({ kind: 'payment', customerId: id })}>
-          <Wallet size={18} /> Ödeme Al
+          Ödeme aldım
+        </Button>
+        <Button variant="primary" onClick={() => open({ kind: 'job', customerId: id })}>
+          İş ekle
         </Button>
       </div>
 
-      {c.note && <p className="mt-3 rounded-xl bg-white/[0.03] px-3 py-2 text-sm text-zinc-400">{c.note}</p>}
+      {c.note && <p className="mt-3 rounded-lg border border-line bg-paper px-3 py-2 text-[15px] text-pencil">{c.note}</p>}
 
-      {/* Mobil: sekmeli / Masaüstü: yan yana */}
+      {state === 'fazla' && (
+        <p className="mt-3 rounded-lg bg-ink-soft px-3 py-2 text-[15px] text-advance">
+          Bu müşteri yapılan işlerden fazla ödemiş ({fmtWords({ TRY: -Math.min(0, l.balance.TRY), USD: -Math.min(0, l.balance.USD), EUR: -Math.min(0, l.balance.EUR) })}). Sonraki işler
+          bu tutardan düşülür.
+        </p>
+      )}
+
+      {/* Mobil: sekmeli / Masaüstü: yan yana (Excel'deki iki sütun gibi) */}
       <div className="lg:hidden">
         <Segmented
-          className="mt-5"
+          className="mt-6"
           value={tab}
           onChange={setTab}
+          label="Liste"
           options={[
-            { value: 'jobs', label: `Yapılan İşler (${jobs.length})` },
+            { value: 'jobs', label: `İşler (${jobs.length})` },
             { value: 'pays', label: `Ödemeler (${pays.length})` },
           ]}
         />
@@ -234,11 +274,11 @@ function CustomerDetail({ id }: { id: string }) {
       </div>
       <div className="hidden gap-6 lg:grid lg:grid-cols-2">
         <div>
-          <SectionTitle>Yapılan İşler ({jobs.length})</SectionTitle>
+          <SectionTitle>Yapılan işler ({jobs.length})</SectionTitle>
           {jobsList}
         </div>
         <div>
-          <SectionTitle>Alınan Ödemeler / Mahsuplar ({pays.length})</SectionTitle>
+          <SectionTitle>Alınan ödemeler ({pays.length})</SectionTitle>
           {paysList}
         </div>
       </div>

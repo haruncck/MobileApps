@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import type { AppData, Customer, Job, Payment, Rates } from '../types';
-import { storage } from '../services/storage';
+import { loadData, loadSnapshot, requestPersistence, saveData, saveSnapshot, storedRev } from '../services/storage';
 import { emptyData } from '../lib/seed';
 import { fetchRates } from '../lib/rates';
 
@@ -13,7 +13,8 @@ type Action =
   | { type: 'deleteJob'; id: string }
   | { type: 'upsertPayment'; payment: Payment }
   | { type: 'deletePayment'; id: string }
-  | { type: 'setRates'; rates: Rates; source?: string };
+  | { type: 'setRates'; rates: Rates; source?: string }
+  | { type: 'markBackup' };
 
 function upsert<T extends { id: string }>(list: T[], item: T): T[] {
   const i = list.findIndex((x) => x.id === item.id);
@@ -51,36 +52,64 @@ function reducer(s: AppData, a: Action): AppData {
     case 'setRates':
       return {
         ...s,
-        settings: { ...s.settings, rates: a.rates, ratesUpdatedAt: new Date().toISOString(), ratesSource: a.source ?? 'Manuel' },
+        settings: { ...s.settings, rates: a.rates, ratesUpdatedAt: new Date().toISOString(), ratesSource: a.source ?? 'Elle girildi' },
       };
+    case 'markBackup':
+      return { ...s, settings: { ...s.settings, lastBackupAt: new Date().toISOString() } };
   }
 }
 
+type LoadState = 'loading' | 'ready' | 'error';
+
 interface Store {
   data: AppData;
-  ready: boolean;
+  loadState: LoadState;
+  loadError: string;
   saving: boolean;
+  saveError: string;
+  persisted: boolean | null;
   dispatch: React.Dispatch<Action>;
+  /** Toplu değişiklik: önce geri dönüş noktası alır */
+  replaceAll: (next: AppData, reason: string) => Promise<boolean>;
+  restoreSnapshot: () => Promise<boolean>;
   refreshRates: () => Promise<boolean>;
   ratesLoading: boolean;
+  reload: () => void;
+  notice: string;
+  clearNotice: () => void;
 }
 
 const Ctx = createContext<Store | null>(null);
 
 const EMPTY: AppData = { version: 1, customers: [], jobs: [], payments: [], settings: { rates: { USD: 0, EUR: 0 } } };
 
+const channel: BroadcastChannel | null = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('hesap-defteri') : null;
+
 export function AppStoreProvider({ children }: { children: ReactNode }) {
   const [data, dispatch] = useReducer(reducer, EMPTY);
-  const [ready, setReady] = useState(false);
+  const [loadState, setLoadState] = useState<LoadState>('loading');
+  const [loadError, setLoadError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
+  const [persisted, setPersisted] = useState<boolean | null>(null);
   const [ratesLoading, setRatesLoading] = useState(false);
-  const loaded = useRef(false);
+  const [notice, setNotice] = useState('');
+  const [attempt, setAttempt] = useState(0);
+
+  const revRef = useRef(0); // bu sekmenin bildiği son sürüm
+  const pending = useRef<Action[]>([]); // henüz diske yazılmamış işlemler (çakışmada yeniden uygulanır)
+  const rawDispatch = dispatch;
+  const logDispatch = useCallback((a: Action) => {
+    pending.current.push(a);
+    rawDispatch(a);
+  }, [rawDispatch]);
+  const skipSave = useRef(true); // yükleme / eşitleme kaynaklı değişiklikleri kaydetme
 
   const refreshRates = useCallback(async () => {
     setRatesLoading(true);
     try {
       const res = await fetchRates();
-      dispatch({ type: 'setRates', rates: res.rates, source: `${res.source} · ${res.date}` });
+      dispatch({ type: 'setRates', rates: res.rates, source: `${res.source}, ${res.date}` });
       return true;
     } catch {
       return false;
@@ -89,35 +118,144 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // İlk yükleme: yerel veri yoksa boş hesap defteriyle başla
+  /** Diskteki son hâli yükler (kaydetmeden) */
+  const pullFromDisk = useCallback(async () => {
+    const r = await loadData();
+    if (r.status === 'ok') {
+      revRef.current = r.data.rev ?? 0;
+      skipSave.current = true;
+      dispatch({ type: 'replace', data: r.data });
+    }
+    return r;
+  }, []);
+
+  // İlk yükleme
   useEffect(() => {
+    let alive = true;
     (async () => {
-      const stored = await storage.load();
-      const initial = stored ?? emptyData();
+      setLoadState('loading');
+      const r = await loadData();
+      if (!alive) return;
+      if (r.status === 'error') {
+        // Okunamadı: boş veriyle ÜZERİNE YAZMA
+        setLoadError(r.message);
+        setLoadState('error');
+        return;
+      }
+      const initial = r.status === 'ok' ? r.data : { ...emptyData(), rev: 0 };
+      revRef.current = initial.rev ?? 0;
+      skipSave.current = true;
       dispatch({ type: 'replace', data: initial });
-      loaded.current = true;
-      setReady(true);
-      if (!stored) await storage.save(initial);
-      // Kurlar 6 saatten eskiyse ve çevrimiçiyse arka planda güncelle
+      setLoadState('ready');
+      setPersisted(await requestPersistence());
       const age = initial.settings.ratesUpdatedAt ? Date.now() - Date.parse(initial.settings.ratesUpdatedAt) : Infinity;
       if (navigator.onLine && age > 6 * 3600 * 1000) refreshRates();
     })();
-  }, [refreshRates]);
+    return () => {
+      alive = false;
+    };
+  }, [refreshRates, attempt]);
 
-  // Her değişiklikte anında kaydet
+  // Her değişiklikte HEMEN kaydet (bekleme yok)
   useEffect(() => {
-    if (!loaded.current) return;
+    if (loadState !== 'ready') return;
+    if (skipSave.current) {
+      skipSave.current = false;
+      return;
+    }
+    // Başka bir sekme/pencere bizden sonra yazmış mı? Öyleyse üzerine yazma.
+    const disk = storedRev();
+    if (disk > revRef.current) {
+      // Başka bir pencere bizden sonra yazmış: diskteki hâli al, bu penceredeki işlemleri üzerine yeniden uygula
+      const actions = pending.current.slice();
+      (async () => {
+        const r = await loadData();
+        if (r.status !== 'ok') return;
+        const merged = actions.reduce(reducer, r.data);
+        revRef.current = r.data.rev ?? disk;
+        rawDispatch({ type: 'replace', data: merged }); // bu değişiklik normal yoldan kaydedilir
+        setNotice('Uygulama başka bir pencerede de açıktı. Oradaki değişiklikler ile buradaki son işleminiz birleştirildi.');
+      })();
+      return;
+    }
+    const next: AppData = { ...data, rev: revRef.current + 1, savedAt: new Date().toISOString() };
+    revRef.current = next.rev!;
     setSaving(true);
-    const t = setTimeout(() => {
-      storage
-        .save(data)
-        .catch((e) => console.error(e))
-        .finally(() => setSaving(false));
-    }, 150);
-    return () => clearTimeout(t);
-  }, [data]);
+    const saved = pending.current.length;
+    saveData(next)
+      .then(() => {
+        pending.current.splice(0, saved);
+        setSaveError('');
+        channel?.postMessage({ rev: next.rev });
+      })
+      .catch((e) => setSaveError((e as Error).message || 'Kayıt yapılamadı'))
+      .finally(() => setSaving(false));
+  }, [data, loadState, rawDispatch]);
 
-  const value = useMemo(() => ({ data, ready, saving, dispatch, refreshRates, ratesLoading }), [data, ready, saving, refreshRates, ratesLoading]);
+  // Diğer sekmelerdeki değişiklikleri al
+  useEffect(() => {
+    const onMsg = (e: MessageEvent) => {
+      if (typeof e.data?.rev === 'number' && e.data.rev > revRef.current) pullFromDisk();
+    };
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === 'saha-cari:rev' && Number(e.newValue) > revRef.current) pullFromDisk();
+    };
+    channel?.addEventListener('message', onMsg);
+    window.addEventListener('storage', onStorage);
+    return () => {
+      channel?.removeEventListener('message', onMsg);
+      window.removeEventListener('storage', onStorage);
+    };
+  }, [pullFromDisk]);
+
+  const replaceAll = useCallback(
+    async (next: AppData, reason: string) => {
+      // Boş defterin geri dönüş noktası anlamsız: yalnızca kayıt varsa saklanır.
+      // Geri dönüş noktası yazılamazsa toplu değişiklik YAPILMAZ.
+      if (data.customers.length || data.jobs.length || data.payments.length) {
+        try {
+          await saveSnapshot(data, reason);
+        } catch {
+          return false;
+        }
+      }
+      logDispatch({ type: 'replace', data: { ...next, settings: { ...next.settings } } });
+      return true;
+    },
+    [data, logDispatch],
+  );
+
+  const restoreSnapshot = useCallback(async () => {
+    const s = await loadSnapshot();
+    if (!s) return false;
+    try {
+      await saveSnapshot(data, 'Geri alma öncesi');
+    } catch {
+      /* geri alma yine de yapılır */
+    }
+    logDispatch({ type: 'replace', data: s.data });
+    return true;
+  }, [data, logDispatch]);
+
+  const value = useMemo(
+    () => ({
+      data,
+      loadState,
+      loadError,
+      saving,
+      saveError,
+      persisted,
+      dispatch: logDispatch,
+      replaceAll,
+      restoreSnapshot,
+      refreshRates,
+      ratesLoading,
+      reload: () => setAttempt((x) => x + 1),
+      notice,
+      clearNotice: () => setNotice(''),
+    }),
+    [data, loadState, loadError, saving, saveError, persisted, logDispatch, replaceAll, restoreSnapshot, refreshRates, ratesLoading, notice],
+  );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 

@@ -200,13 +200,25 @@ export function monthKey(date: string) {
   return date.slice(0, 7);
 }
 
-export function monthlySeries(data: AppData, months = 12): MonthPoint[] {
-  const now = new Date();
+export const keyOf = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+const addMonths = (key: string, n: number) => {
+  const [y, m] = key.split('-').map(Number);
+  return keyOf(new Date(y, m - 1 + n, 1));
+};
+const monthsBetween = (a: string, b: string) => {
+  const [ay, am] = a.split('-').map(Number);
+  const [by, bm] = b.split('-').map(Number);
+  return (by - ay) * 12 + (bm - am) + 1;
+};
+
+/** [start, end] ayları arasındaki aylık iş ve tahsilat toplamları (TL) */
+export function seriesBetween(data: AppData, start: string, end: string): MonthPoint[] {
   const pts: MonthPoint[] = [];
-  for (let i = months - 1; i >= 0; i--) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-    pts.push({ key, label: `${MONTHS_TR[d.getMonth()]} ${String(d.getFullYear()).slice(2)}`, isTRY: 0, tahsilatTRY: 0 });
+  const n = monthsBetween(start, end);
+  for (let i = 0; i < n; i++) {
+    const key = addMonths(start, i);
+    const [y, m] = key.split('-').map(Number);
+    pts.push({ key, label: `${MONTHS_TR[m - 1]} ${String(y).slice(2)}`, isTRY: 0, tahsilatTRY: 0 });
   }
   const idx = new Map(pts.map((p, i) => [p.key, i]));
   const r = data.settings.rates;
@@ -221,13 +233,38 @@ export function monthlySeries(data: AppData, months = 12): MonthPoint[] {
   return pts.map((p) => ({ ...p, isTRY: round2(p.isTRY), tahsilatTRY: round2(p.tahsilatTRY) }));
 }
 
-/** İlk iş ayından bu aya kadar geçen ay sayısına göre aylık ortalama iş hacmi (TL) */
-export function monthlyAverage(data: AppData): { avgTRY: number; months: number } {
-  if (!data.jobs.length) return { avgTRY: 0, months: 0 };
-  const first = data.jobs.map((j) => j.date).sort()[0];
-  const [fy, fm] = first.split('-').map(Number);
-  const now = new Date();
-  const months = Math.max(1, (now.getFullYear() - fy) * 12 + (now.getMonth() + 1 - fm) + 1);
-  const total = toTRY(sumJobs(data.jobs), data.settings.rates);
-  return { avgTRY: round2(total / months), months };
+/** Son `months` ay (bu ay dahil) */
+export function monthlySeries(data: AppData, months = 12): MonthPoint[] {
+  const cur = keyOf(new Date());
+  return seriesBetween(data, addMonths(cur, -(months - 1)), cur);
+}
+
+export interface Average {
+  avgTRY: number; // aylık ortalama yapılan iş
+  avgCollectTRY: number; // aylık ortalama tahsilat
+  months: number;
+  includesCurrent: boolean; // yalnızca bu ay varsa true
+  series: MonthPoint[]; // ortalamaya giren aylar
+  futureCount: number; // ileri tarihli (ortalamaya girmeyen) kayıt sayısı
+}
+
+/**
+ * Aylık ortalama: ilk kaydın ayından GEÇEN AYA kadar (bitmemiş bu ay hariç).
+ * Henüz tamamlanmış ay yoksa yalnızca bu ay kullanılır. İleri tarihli kayıtlar dahil edilmez.
+ * Kartta görünen rakam ile döküm tablosu aynı seriden hesaplanır.
+ */
+export function monthlyAverage(data: AppData): Average {
+  const cur = keyOf(new Date());
+  const dates = [...data.jobs.map((j) => j.date), ...data.payments.map((p) => p.date)].filter((d) => /^\d{4}-\d{2}/.test(d));
+  const futureCount = dates.filter((d) => monthKey(d) > cur).length;
+  const past = dates.filter((d) => monthKey(d) <= cur).sort();
+  if (!past.length) return { avgTRY: 0, avgCollectTRY: 0, months: 0, includesCurrent: false, series: [], futureCount };
+  const first = monthKey(past[0]);
+  const last = addMonths(cur, -1);
+  const includesCurrent = first > last;
+  const series = includesCurrent ? seriesBetween(data, cur, cur) : seriesBetween(data, first, last);
+  const n = series.length;
+  const totIs = series.reduce((s, x) => s + x.isTRY, 0);
+  const totTa = series.reduce((s, x) => s + x.tahsilatTRY, 0);
+  return { avgTRY: round2(totIs / n), avgCollectTRY: round2(totTa / n), months: n, includesCurrent, series, futureCount };
 }

@@ -14,6 +14,11 @@ export type Modal =
   | { kind: 'payment'; id?: string; customerId?: string; jobId?: string }
   | null;
 
+export interface ToastAction {
+  label: string;
+  run: () => void;
+}
+
 interface UI {
   route: Route;
   go: (r: Route) => void;
@@ -21,8 +26,9 @@ interface UI {
   modal: Modal;
   open: (m: Modal) => void;
   close: () => void;
-  toast: (msg: string, tone?: 'ok' | 'err') => void;
-  toastMsg: { msg: string; tone: 'ok' | 'err'; key: number } | null;
+  toast: (msg: string, tone?: 'ok' | 'err', action?: ToastAction) => void;
+  toastMsg: { msg: string; tone: 'ok' | 'err'; key: number; action?: ToastAction } | null;
+  dismissToast: () => void;
 }
 
 const Ctx = createContext<UI | null>(null);
@@ -58,18 +64,18 @@ export function UIProvider({ children }: { children: ReactNode }) {
     else go({ tab: 'customers' });
   }, [go]);
 
-  const toast = useCallback((msg: string, tone: 'ok' | 'err' = 'ok') => {
-    setToast({ msg, tone, key: Date.now() });
+  const toast = useCallback((msg: string, tone: 'ok' | 'err' = 'ok', action?: ToastAction) => {
+    setToast({ msg, tone, key: Date.now(), action });
   }, []);
 
   useEffect(() => {
     if (!toastMsg) return;
-    const t = setTimeout(() => setToast(null), 2600);
+    const t = setTimeout(() => setToast(null), toastMsg.action ? 7000 : toastMsg.tone === 'err' ? 5000 : 2800);
     return () => clearTimeout(t);
   }, [toastMsg]);
 
   return (
-    <Ctx.Provider value={{ route, go, back, modal, open: setModal, close: () => setModal(null), toast, toastMsg }}>
+    <Ctx.Provider value={{ route, go, back, modal, open: setModal, close: () => setModal(null), toast, toastMsg, dismissToast: () => setToast(null) }}>
       {children}
     </Ctx.Provider>
   );

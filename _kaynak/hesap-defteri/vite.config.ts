@@ -10,14 +10,14 @@ export default defineConfig({
     react(),
     tailwindcss(),
     VitePWA({
-      registerType: 'autoUpdate',
+      registerType: 'prompt',
       includeAssets: ['icon.svg', 'apple-touch-icon.png'],
       manifest: {
         name: 'Hesap Defteri – Saha İşleri & Cari Takip',
         short_name: 'Hesap Defteri',
         description: 'Saha işleri, çoklu döviz cari hesap ve tahsilat takibi',
-        theme_color: '#18181b',
-        background_color: '#121214',
+        theme_color: '#ffffff',
+        background_color: '#e9edf3',
         display: 'standalone',
         orientation: 'portrait',
         start_url: './',

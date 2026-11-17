@@ -5,7 +5,16 @@ import './index.css';
 import App from './App';
 import { AppStoreProvider } from './store/AppStore';
 
-registerSW({ immediate: true });
+/*
+ * Yeni sürüm otomatik olarak sayfayı yenilemez (form doldururken veri kaybolmasın):
+ * kullanıcıya "Güncelle" düğmesi gösterilir.
+ */
+const updateSW = registerSW({
+  onNeedRefresh() {
+    window.dispatchEvent(new CustomEvent('hd:update-ready'));
+  },
+});
+(window as unknown as { __hdUpdate: () => void }).__hdUpdate = () => updateSW(true);
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

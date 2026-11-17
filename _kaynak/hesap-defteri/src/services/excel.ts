@@ -4,14 +4,28 @@ import { CURRENCIES, JOB_STATUS_LABEL, PAYMENT_TYPE_LABEL } from '../types';
 import { customerLedger, jobPayStates, ledger, monthlyAverage } from '../lib/money';
 import { fmtBreakdown, today } from '../lib/format';
 import { normalizeData } from './normalize';
+import type { NormalizeResult } from './normalize';
 
 const NUM_FMT = '#,##0.00';
+const DATE_FMT = 'dd\\.mm\\.yyyy'; // nokta kaçışlı (SheetJS biçim ayrıştırıcısı için)
 const PAY_STATE: Record<string, string> = { alacak: 'Alacak', kismi: 'Kısmi Tahsil', tahsil: 'Tahsil Edildi' };
 
-type Row = (string | number | null)[];
+type Row = (string | number | Date | null)[];
 
 function sheet(rows: Row[], widths: number[]) {
-  const ws = XLSX.utils.aoa_to_sheet(rows);
+  // Excel hücre sınırı 32.767 karakter: uzun metinler kısaltılır (özet sayfaları için)
+  const safe = rows.map((r) => r.map((v) => (typeof v === 'string' && v.length > 32000 ? `${v.slice(0, 32000)}…` : v)));
+  // YYYY-AA-GG metinleri gerçek Excel tarihine çevrilir (gg.aa.yyyy görünür)
+  const withDates = safe.map((r) =>
+    r.map((v) => {
+      if (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v)) {
+        const [y, m, d] = v.split('-').map(Number);
+        return new Date(Date.UTC(y, m - 1, d, 12));
+      }
+      return v;
+    }),
+  );
+  const ws = XLSX.utils.aoa_to_sheet(withDates as Row[], { cellDates: true, dateNF: DATE_FMT });
   ws['!cols'] = widths.map((w) => ({ wch: w }));
   // Sayısal hücrelere binlik ayraçlı biçim
   const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
@@ -19,6 +33,7 @@ function sheet(rows: Row[], widths: number[]) {
     for (let c = range.s.c; c <= range.e.c; c++) {
       const cell = ws[XLSX.utils.encode_cell({ r, c })];
       if (cell && cell.t === 'n' && !cell.z) cell.z = NUM_FMT;
+      if (cell && cell.t === 'd') cell.z = DATE_FMT;
     }
   return ws;
 }
@@ -33,6 +48,9 @@ function safeSheetName(name: string, used: Set<string>) {
 }
 
 export function exportWorkbook(data: AppData) {
+  // Excel hücresi en fazla 32.767 karakter alır; ham veri kısaltılamaz (kayıp olur)
+  const tooLong = JSON.stringify(data).length > 0 && [...data.customers, ...data.jobs, ...data.payments].some((r) => Object.values(r).some((v) => typeof v === 'string' && v.length > 32000));
+  if (tooLong) throw new Error('Bir kayıttaki not çok uzun olduğu için Excel yedeği alınamıyor. “Telefon değiştirme yedeği (.json)” ile yedek alın.');
   const wb = XLSX.utils.book_new();
   const r = data.settings.rates;
   const total = ledger(data.jobs, data.payments, r);
@@ -41,16 +59,16 @@ export function exportWorkbook(data: AppData) {
 
   /* ---------- Genel Özet ---------- */
   const summary: Row[] = [
-    ['SAHA CARİ – GENEL ÖZET'],
+    ['HESAP DEFTERİ – GENEL ÖZET'],
     ['Rapor Tarihi', today()],
     ['Kur (USD/TRY)', r.USD],
     ['Kur (EUR/TRY)', r.EUR],
     [],
     ['GÖSTERGE', 'TL Karşılığı (güncel kur)', 'Döviz Kırılımı'],
     ['Yapılan İşler Toplamı', total.jobsTRY, fmtBreakdown(total.jobs)],
-    ['Toplam Alınan (Mahsup)', total.creditedTRY, fmtBreakdown(total.credited)],
+    ['Toplam Alınan', total.creditedTRY, fmtBreakdown(total.credited)],
     ['Net Kalan Alacak', total.balanceTRY, fmtBreakdown(total.balance)],
-    ['Fiili Tahsilat (işlem kuruyla TL)', total.receivedTRY, ''],
+    ['Alınan ödemeler (ödeme günü kuruyla TL)', total.receivedTRY, ''],
     ['Aylık Ortalama İş Hacmi', avg.avgTRY, `${avg.months} ay`],
     [],
     [
@@ -136,29 +154,30 @@ export function exportWorkbook(data: AppData) {
   raw('_jobs', data.jobs);
   raw('_payments', data.payments.map((p) => ({ ...p, rates: JSON.stringify(p.rates), allocations: JSON.stringify(p.allocations) })));
   raw('_settings', [{ USD: r.USD, EUR: r.EUR, ratesUpdatedAt: data.settings.ratesUpdatedAt ?? '', ratesSource: data.settings.ratesSource ?? '' }]);
-  wb.Workbook = { Sheets: wb.SheetNames.map((n) => ({ name: n, Hidden: n.startsWith('_') ? 1 : 0 })) };
+  const RAW = ['_customers', '_jobs', '_payments', '_settings'];
+  wb.Workbook = { Sheets: wb.SheetNames.map((n) => ({ name: n, Hidden: RAW.includes(n) ? 1 : 0 })) };
 
-  XLSX.writeFile(wb, `saha-cari-${today()}.xlsx`, { compression: true });
+  XLSX.writeFile(wb, `hesap-defteri-${today()}.xlsx`, { compression: true });
 }
 
 export function exportJSON(data: AppData) {
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = `saha-cari-yedek-${today()}.json`;
+  a.download = `hesap-defteri-yedek-${today()}.json`;
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
 
 /** .json veya bu uygulamanın ürettiği .xlsx dosyasını okur */
-export async function importFile(file: File): Promise<AppData> {
+export async function importFile(file: File): Promise<NormalizeResult> {
   if (file.name.toLowerCase().endsWith('.json')) {
     return normalizeData(JSON.parse(await file.text()));
   }
   const wb = XLSX.read(await file.arrayBuffer(), { type: 'array' });
   const need = ['_customers', '_jobs', '_payments'];
   if (!need.every((n) => wb.SheetNames.includes(n)))
-    throw new Error('Bu Excel dosyası Saha Cari yedeği değil (gizli _customers/_jobs/_payments sekmeleri bulunamadı).');
+    throw new Error('Bu Excel dosyası Hesap Defteri yedeği değil. Yalnızca bu uygulamanın “Excel yedeği indir” ile aldığı dosyalar geri yüklenebilir.');
   const read = (n: string) => XLSX.utils.sheet_to_json<Record<string, unknown>>(wb.Sheets[n], { defval: '' });
   const parse = (v: unknown) => {
     try {

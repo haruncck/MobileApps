@@ -1,14 +1,40 @@
+@import '@fontsource/barlow/400.css';
+@import '@fontsource/barlow/500.css';
+@import '@fontsource/barlow/600.css';
+@import '@fontsource/barlow/700.css';
+@import '@fontsource/barlow-semi-condensed/600.css';
+@import '@fontsource/barlow-semi-condensed/700.css';
 @import 'tailwindcss';
 
+/*
+ * Hesap Defteri – "cep defteri" teması
+ * Kâğıt: soğuk beyaz sayfa, mavi satır çizgileri, kırmızı kenar çizgisi
+ * Mürekkep: mavi tükenmez (eylemler), kırmızı kalem (alacak), yeşil kalem (tahsilat)
+ */
 @theme {
-  --color-app: #121214;
-  --color-panel: #1b1b1f;
-  --color-panel-2: #232328;
-  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  --animate-up: up 0.22s cubic-bezier(0.2, 0.9, 0.3, 1);
-  --animate-fade: fade 0.2s ease-out;
+  --color-desk: #e9edf3; /* sayfanın durduğu masa */
+  --color-paper: #ffffff;
+  --color-rule: #d3deee; /* defter satır çizgisi */
+  --color-margin: #ef9a9a; /* kırmızı kenar boşluğu çizgisi */
+  --color-line: #d8dde6; /* nötr kenarlık */
+  --color-graphite: #23262d; /* metin */
+  --color-pencil: #5f6673; /* ikincil metin */
+  --color-faint: #8e95a2; /* üçüncül metin */
+  --color-ink: #1f3a93; /* mavi tükenmez */
+  --color-ink-soft: #e8edf9;
+  --color-due: #b42318; /* kırmızı kalem: alacak */
+  --color-due-soft: #fdeceb;
+  --color-paid: #17734a; /* yeşil kalem: tahsilat */
+  --color-paid-soft: #e7f4ec;
+  --color-advance: #1d5fa8; /* fazla ödeme / avans */
+
+  --font-sans: 'Barlow', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-figure: 'Barlow Semi Condensed', 'Barlow', ui-sans-serif, system-ui, sans-serif;
+
+  --animate-up: up 0.2s cubic-bezier(0.2, 0.9, 0.3, 1);
+  --animate-fade: fade 0.15s ease-out;
   @keyframes up {
-    from { transform: translateY(24px); opacity: 0; }
+    from { transform: translateY(16px); opacity: 0; }
     to { transform: translateY(0); opacity: 1; }
   }
   @keyframes fade {
@@ -18,21 +44,55 @@
 }
 
 @layer base {
-  html { color-scheme: dark; -webkit-tap-highlight-color: transparent; }
+  html { color-scheme: light; -webkit-tap-highlight-color: transparent; }
   body {
-    @apply bg-app text-zinc-200 antialiased;
-    font-feature-settings: 'tnum' 1, 'cv11' 1;
+    @apply bg-desk font-sans text-graphite antialiased;
+    font-size: 16px;
+    line-height: 1.45;
     overscroll-behavior-y: none;
   }
-  input[type='date']::-webkit-calendar-picker-indicator { filter: invert(0.7); }
+  :focus-visible { outline: 2px solid var(--color-ink); outline-offset: 2px; }
   select {
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2371717a' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%235f6673' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
     background-repeat: no-repeat;
     background-position: right 0.6rem center;
+    background-size: 16px;
   }
-  ::-webkit-scrollbar { width: 8px; height: 8px; }
-  ::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 8px; }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+  }
 }
 
-.num { font-variant-numeric: tabular-nums; }
+/* Tutarlar: tablo rakamları, dar kesim */
+.num { font-variant-numeric: tabular-nums lining-nums; font-feature-settings: 'tnum' 1, 'lnum' 1; }
+.figure { font-family: var(--font-figure); font-variant-numeric: tabular-nums lining-nums; font-feature-settings: 'tnum' 1; letter-spacing: -0.01em; }
+
+/* Defter sayfası: kırmızı kenar çizgisi + satır çizgileri */
+.ledger {
+  position: relative;
+  background: var(--color-paper);
+  border: 1px solid var(--color-line);
+  border-radius: 10px;
+  padding-left: 14px;
+  overflow: hidden;
+}
+.ledger::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 10px;
+  width: 1.5px;
+  background: var(--color-margin);
+  pointer-events: none;
+}
+.ledger > .row + .row,
+.ledger .rows > * + * { border-top: 1px solid var(--color-rule); }
+
+/* Muhasebe toplamı: çift alt çizgi */
+.total-rule {
+  border-bottom: 3px double currentColor;
+  padding-bottom: 1px;
+}
+
 .pb-nav { padding-bottom: calc(6.5rem + env(safe-area-inset-bottom)); }

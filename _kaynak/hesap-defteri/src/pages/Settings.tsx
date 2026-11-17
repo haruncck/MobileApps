@@ -1,28 +1,45 @@
 import { useEffect, useRef, useState } from 'react';
-import { Database, Download, FileJson, FileSpreadsheet, Loader2, RefreshCw, Smartphone, Trash2, Upload } from 'lucide-react';
+import type { ReactNode } from 'react';
+import { FileJson, FileSpreadsheet, Loader2, RefreshCw, RotateCcw, ShieldAlert, ShieldCheck, Smartphone, Trash2, Upload } from 'lucide-react';
 import { useStore } from '../store/AppStore';
 import { useUI } from '../ui-context';
 import { fmtRate, parseNum } from '../lib/format';
 import { emptyData } from '../lib/seed';
-import { storage } from '../services/storage';
-import { Button, Card, Field, Input, SectionTitle } from '../components/ui';
+import { loadSnapshot } from '../services/storage';
+import type { AppData } from '../types';
+import { Button, ConfirmSheet, Field, Input, Ledger, SectionTitle, Sheet, cx } from '../components/ui';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type InstallEvent = any;
 
+const daysSince = (iso?: string) => (iso ? Math.floor((Date.now() - Date.parse(iso)) / 86400000) : null);
+const fmtDateTime = (iso: string) => new Date(iso).toLocaleString('tr-TR', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' });
+
 export function Settings() {
-  const { data, dispatch, refreshRates, ratesLoading } = useStore();
+  const { data, dispatch, refreshRates, ratesLoading, replaceAll, restoreSnapshot, persisted } = useStore();
   const { toast } = useUI();
   const [usd, setUsd] = useState(fmtRate(data.settings.rates.USD));
   const [eur, setEur] = useState(fmtRate(data.settings.rates.EUR));
   const [busy, setBusy] = useState<'' | 'xlsx' | 'import'>('');
   const fileRef = useRef<HTMLInputElement>(null);
   const [installEvt, setInstallEvt] = useState<InstallEvent>(null);
+  const [snap, setSnap] = useState<{ at: string; reason: string; data: AppData } | null>(null);
+  const [dialog, setDialog] = useState<
+    | null
+    | { kind: 'import'; next: AppData; fileName: string }
+    | { kind: 'issues'; issues: string[]; fileName: string }
+    | { kind: 'wipe' }
+    | { kind: 'undo' }
+  >(null);
 
   useEffect(() => {
     setUsd(fmtRate(data.settings.rates.USD));
     setEur(fmtRate(data.settings.rates.EUR));
   }, [data.settings.rates]);
+
+  useEffect(() => {
+    loadSnapshot().then(setSnap);
+  }, [data]);
 
   useEffect(() => {
     const h = (e: Event) => {
@@ -34,10 +51,10 @@ export function Settings() {
   }, []);
 
   const saveRates = () => {
-    const U = parseNum(usd);
-    const E = parseNum(eur);
-    if (!(U > 0 && E > 0)) return toast('Geçerli kur girin', 'err');
-    dispatch({ type: 'setRates', rates: { USD: U, EUR: E }, source: 'Manuel' });
+    const U = parseNum(usd, { rate: true });
+    const E = parseNum(eur, { rate: true });
+    if (!(U > 0 && E > 0)) return toast('Kur geçersiz. Örnek: 42,24', 'err');
+    dispatch({ type: 'setRates', rates: { USD: U, EUR: E }, source: 'Elle girildi' });
     toast('Kurlar kaydedildi');
   };
 
@@ -46,9 +63,10 @@ export function Settings() {
     try {
       const { exportWorkbook } = await import('../services/excel');
       exportWorkbook(data);
-      toast('Excel dosyası indirildi');
+      dispatch({ type: 'markBackup' });
+      toast('Excel yedeği indirildi');
     } catch (e) {
-      toast(`Dışa aktarılamadı: ${(e as Error).message}`, 'err');
+      toast(`Yedek alınamadı: ${e instanceof Error ? e.message : String(e)}`, 'err');
     } finally {
       setBusy('');
     }
@@ -57,6 +75,7 @@ export function Settings() {
   const exportJson = async () => {
     const { exportJSON } = await import('../services/excel');
     exportJSON(data);
+    dispatch({ type: 'markBackup' });
     toast('JSON yedeği indirildi');
   };
 
@@ -65,10 +84,10 @@ export function Settings() {
     setBusy('import');
     try {
       const { importFile } = await import('../services/excel');
-      const next = await importFile(f);
-      if (!confirm(`Yedekte ${next.customers.length} müşteri, ${next.jobs.length} iş, ${next.payments.length} ödeme var.\nMevcut verilerin YERİNE geçsin mi?`)) return;
-      dispatch({ type: 'replace', data: next });
-      toast('Yedek geri yüklendi');
+      const res = await importFile(f);
+      if (res.issues.length) setDialog({ kind: 'issues', issues: res.issues, fileName: f.name });
+      else if (!res.data.customers.length) setDialog({ kind: 'issues', issues: ['Dosyada hiç müşteri yok.'], fileName: f.name });
+      else setDialog({ kind: 'import', next: res.data, fileName: f.name });
     } catch (e) {
       toast((e as Error).message || 'Dosya okunamadı', 'err');
     } finally {
@@ -77,107 +96,233 @@ export function Settings() {
     }
   };
 
+  const backupDays = daysSince(data.settings.lastBackupAt);
+  const hasData = data.customers.length > 0;
+  const backupWarn = hasData && (backupDays === null || backupDays >= 7);
+
   return (
     <div className="max-w-2xl">
-      <h1 className="mb-2 text-2xl font-bold tracking-tight text-white">Ayarlar</h1>
+      <h1 className="mb-1 text-[28px] font-bold text-graphite">Ayarlar</h1>
 
-      <SectionTitle>Güncel Döviz Kurları</SectionTitle>
-      <Card className="p-4">
+      {/* Yedek */}
+      <SectionTitle>Yedek</SectionTitle>
+      <Ledger>
+        <div className="rows">
+          <div className={cx('px-3 py-3', backupWarn && 'bg-due-soft')}>
+            <div className={cx('text-[16px] font-semibold', backupWarn ? 'text-due' : 'text-graphite')}>
+              {backupDays === null ? 'Henüz hiç yedek almadınız' : backupDays === 0 ? 'Son yedek bugün alındı' : `Son yedek ${backupDays} gün önce alındı`}
+            </div>
+            <p className="text-[14px] text-pencil">
+              Kayıtlar yalnızca bu telefonda duruyor. Telefon kaybolur ya da tarayıcı verileri silinirse yedek olmadan geri gelmez. Haftada bir yedek alıp
+              Drive'a veya e-postanıza kaydedin.
+            </p>
+          </div>
+          <Action icon={<FileSpreadsheet size={22} />} cls="text-paid" title="Excel yedeği indir" text="Özet, her müşteri için ayrı sayfa ve tüm hareketler" onClick={exportXlsx} loading={busy === 'xlsx'} />
+          <Action icon={<FileJson size={22} />} cls="text-ink" title="Telefon değiştirme yedeği (.json)" text="Kayıtları başka bir telefona taşımak için" onClick={exportJson} />
+          <Action
+            icon={<Upload size={22} />}
+            cls="text-graphite"
+            title="Yedekten geri yükle"
+            text="Bu uygulamadan alınmış Excel (.xlsx) veya JSON dosyası"
+            onClick={() => fileRef.current?.click()}
+            loading={busy === 'import'}
+          />
+          {snap && snap.data.customers.length > 0 && (
+            <Action
+              icon={<RotateCcw size={22} />}
+              cls="text-advance"
+              title="Son toplu değişikliği geri al"
+              text={`${snap.reason} öncesine dön (${fmtDateTime(snap.at)}): ${snap.data.customers.length} müşteri, ${snap.data.jobs.length} iş, ${snap.data.payments.length} ödeme`}
+              onClick={() => setDialog({ kind: 'undo' })}
+            />
+          )}
+        </div>
+        <input
+          ref={fileRef}
+          type="file"
+          accept=".xlsx,.json,application/json,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+          hidden
+          onChange={(e) => onImport(e.target.files?.[0])}
+        />
+      </Ledger>
+
+      {/* Kurlar */}
+      <SectionTitle>Döviz kurları</SectionTitle>
+      <div className="rounded-[10px] border border-line bg-paper p-4">
         <div className="grid grid-cols-2 gap-3">
-          <Field label="1 USD ($) = ₺">
+          <Field label="1 dolar ($) kaç TL">
             <Input className="num" inputMode="decimal" value={usd} onChange={(e) => setUsd(e.target.value)} />
           </Field>
-          <Field label="1 EUR (€) = ₺">
+          <Field label="1 euro (€) kaç TL">
             <Input className="num" inputMode="decimal" value={eur} onChange={(e) => setEur(e.target.value)} />
           </Field>
         </div>
-        <p className="mt-2 text-xs text-zinc-500">
-          Kaynak: {data.settings.ratesSource ?? '—'}
-          {data.settings.ratesUpdatedAt && ` · ${new Date(data.settings.ratesUpdatedAt).toLocaleString('tr-TR')}`}
+        <p className="mt-2 text-[14px] text-pencil">
+          Bu kurlar yalnızca dövizli borçların bugünkü TL karşılığını göstermek için kullanılır. Alınan ödemeler, girildiği gün yazılan kurla sabit kalır; burada
+          kur değişince geçmiş ödemeler değişmez.
         </p>
-        <p className="mt-1 text-xs text-zinc-600">
-          Bu kurlar özet ekranındaki TL karşılıkları içindir. Ödemelerdeki mahsuplar, kayıt anında girilen işlem kuruyla sabitlenir.
+        <p className="mt-1 text-[13px] text-faint">
+          Kaynak: {data.settings.ratesSource ?? 'Elle girildi'}
+          {data.settings.ratesUpdatedAt && `, ${fmtDateTime(data.settings.ratesUpdatedAt)}`}
         </p>
         <div className="mt-3 flex gap-2">
           <Button variant="primary" className="flex-1" onClick={saveRates}>
-            Kaydet
+            Kurları kaydet
           </Button>
           <Button
-            onClick={async () => { const ok = await refreshRates(); toast(ok ? 'Kurlar güncellendi' : 'Kur alınamadı', ok ? 'ok' : 'err'); }}
+            onClick={async () => {
+              const ok = await refreshRates();
+              toast(ok ? 'Kurlar güncellendi' : 'Kur alınamadı. İnternet bağlantınızı kontrol edin.', ok ? 'ok' : 'err');
+            }}
             disabled={ratesLoading}
           >
-            {ratesLoading ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />} Piyasadan Çek
+            {ratesLoading ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />} İnternetten al
           </Button>
         </div>
-      </Card>
-
-      <SectionTitle>Yedekleme & Excel</SectionTitle>
-      <Card className="divide-y divide-white/5">
-        <Action icon={<FileSpreadsheet size={20} />} tone="text-emerald-300 bg-emerald-400/10" title="Excel'e Aktar (.xlsx)" text="Genel Özet + her müşteri için ayrı sekme + Hareketler" onClick={exportXlsx} loading={busy === 'xlsx'} />
-        <Action icon={<FileJson size={20} />} tone="text-sky-300 bg-sky-400/10" title="JSON Yedeği İndir" text="Tam yedek; başka cihaza taşımak için" onClick={exportJson} />
-        <Action icon={<Upload size={20} />} tone="text-amber-300 bg-amber-400/10" title="Yedekten Geri Yükle" text="Bu uygulamadan alınmış .xlsx veya .json dosyası" onClick={() => fileRef.current?.click()} loading={busy === 'import'} />
-        <input ref={fileRef} type="file" accept=".xlsx,.json,application/json,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden onChange={(e) => onImport(e.target.files?.[0])} />
-      </Card>
+      </div>
 
       {installEvt && (
         <>
-          <SectionTitle>Uygulama</SectionTitle>
-          <Card className="divide-y divide-white/5">
-            <Action
-              icon={<Smartphone size={20} />}
-              tone="text-zinc-200 bg-white/5"
-              title="Ana Ekrana Yükle"
-              text="Tam ekran, çevrimdışı çalışan uygulama olarak kur"
-              onClick={async () => {
-                installEvt.prompt();
-                await installEvt.userChoice;
-                setInstallEvt(null);
-              }}
-            />
-          </Card>
+          <SectionTitle>Telefona kur</SectionTitle>
+          <Ledger>
+            <div className="rows">
+              <Action
+                icon={<Smartphone size={22} />}
+                cls="text-ink"
+                title="Ana ekrana ekle"
+                text="Uygulama gibi tam ekran açılır, internetsiz çalışır"
+                onClick={async () => {
+                  installEvt.prompt();
+                  await installEvt.userChoice;
+                  setInstallEvt(null);
+                }}
+              />
+            </div>
+          </Ledger>
         </>
       )}
 
-      <SectionTitle>Veri</SectionTitle>
-      <Card className="divide-y divide-white/5">
-        <div className="flex items-center gap-3 px-4 py-3 text-sm text-zinc-400">
-          <Database size={18} className="text-zinc-500" />
-          <span className="flex-1">
-            Depolama: <span className="text-zinc-200">{storage.name}</span>
-          </span>
-          <span className="num text-xs text-zinc-500">
-            {data.customers.length} müşteri · {data.jobs.length} iş · {data.payments.length} ödeme
-          </span>
+      {/* Veri */}
+      <SectionTitle>Kayıtlar</SectionTitle>
+      <Ledger>
+        <div className="rows">
+          <div className="flex items-start gap-3 px-3 py-3">
+            {persisted ? <ShieldCheck size={22} className="mt-0.5 shrink-0 text-paid" /> : <ShieldAlert size={22} className="mt-0.5 shrink-0 text-due" />}
+            <div>
+              <div className="text-[16px] font-semibold text-graphite">{persisted ? 'Kalıcı depolama açık' : 'Kalıcı depolama izni verilmedi'}</div>
+              <p className="text-[14px] text-pencil">
+                {persisted
+                  ? 'Tarayıcı, yer açmak için bu kayıtları kendiliğinden silmez.'
+                  : 'Tarayıcı uzun süre kullanılmayan verileri silebilir. Uygulamayı ana ekrana ekleyin ve düzenli yedek alın.'}
+              </p>
+              <p className="num mt-1 text-[14px] text-faint">
+                {data.customers.length} müşteri, {data.jobs.length} iş, {data.payments.length} ödeme kayıtlı
+              </p>
+            </div>
+          </div>
+          <Action icon={<Trash2 size={22} />} cls="text-due" title="Tüm kayıtları sil" text="Boş bir defterle baştan başla" onClick={() => setDialog({ kind: 'wipe' })} />
         </div>
-        <Action
-          icon={<Trash2 size={20} />}
-          tone="text-rose-300 bg-rose-400/10"
-          title="Tüm Verileri Sil"
-          text="Boş bir hesap defteriyle başla"
-          onClick={() => {
-            if (confirm('TÜM müşteri, iş ve ödeme kayıtları silinecek. Bu işlem geri alınamaz. Devam edilsin mi?')) {
-              dispatch({ type: 'replace', data: { ...emptyData(), settings: data.settings } });
-              toast('Tüm veriler silindi');
-            }
+      </Ledger>
+
+      {/* Pencereler */}
+      {dialog?.kind === 'issues' && (
+        <Sheet
+          open
+          onClose={() => setDialog(null)}
+          title="Yedek yüklenmedi"
+          footer={
+            <Button className="w-full" onClick={() => setDialog(null)}>
+              Tamam
+            </Button>
+          }
+        >
+          <p className="text-[16px] text-graphite">
+            “{dialog.fileName}” dosyasında sorunlu kayıtlar var. Eksik yükleme yapıp kayıt kaybetmemek için dosya hiç yüklenmedi; mevcut defteriniz değişmedi.
+          </p>
+          <ul className="mt-3 list-disc space-y-1 pl-5 text-[14px] text-pencil">
+            {dialog.issues.slice(0, 12).map((x, i) => (
+              <li key={i}>{x}</li>
+            ))}
+            {dialog.issues.length > 12 && <li>ve {dialog.issues.length - 12} sorun daha</li>}
+          </ul>
+        </Sheet>
+      )}
+      {dialog?.kind === 'import' && (
+        <ConfirmSheet
+          title="Yedek yüklensin mi?"
+          confirmLabel="Yedeği yükle"
+          message={
+            <>
+              <p>
+                “{dialog.fileName}” içinde <b>{dialog.next.customers.length} müşteri, {dialog.next.jobs.length} iş, {dialog.next.payments.length} ödeme</b> var.
+              </p>
+              {hasData && (
+                <p className="mt-2">
+                  Şu anki defterinizdeki {data.customers.length} müşteri, {data.jobs.length} iş ve {data.payments.length} ödemenin <b>yerine geçecek</b>. Şu anki
+                  hâl saklanır; isterseniz bu sayfadan geri alabilirsiniz.
+                </p>
+              )}
+            </>
+          }
+          onCancel={() => setDialog(null)}
+          onConfirm={async () => {
+            const next = dialog.next;
+            setDialog(null);
+            const ok = await replaceAll({ ...next, settings: { ...next.settings, lastBackupAt: next.settings.lastBackupAt ?? data.settings.lastBackupAt } }, 'Yedek yükleme');
+            toast(ok ? 'Yedek yüklendi' : 'Geri dönüş noktası kaydedilemediği için yedek yüklenmedi. Telefonun hafızası dolu olabilir.', ok ? 'ok' : 'err');
           }}
         />
-      </Card>
-      <p className="mt-6 text-center text-xs text-zinc-600">
-        <Download size={12} className="mr-1 inline" />
-        Veriler yalnızca bu cihazda saklanır. Düzenli Excel/JSON yedeği almanız önerilir.
-      </p>
+      )}
+      {dialog?.kind === 'wipe' && (
+        <ConfirmSheet
+          title="Tüm kayıtlar silinsin mi?"
+          confirmLabel="Hepsini sil"
+          danger
+          message={
+            <>
+              <p>
+                {data.customers.length} müşteri, {data.jobs.length} iş ve {data.payments.length} ödeme silinecek.
+              </p>
+              <p className="mt-2 text-pencil">Silmeden önce mevcut hâl saklanır; bu sayfadaki “Son toplu değişikliği geri al” ile geri getirebilirsiniz.</p>
+            </>
+          }
+          onCancel={() => setDialog(null)}
+          onConfirm={async () => {
+            setDialog(null);
+            const ok = await replaceAll({ ...emptyData(), settings: data.settings }, 'Tüm kayıtları silme');
+            toast(ok ? 'Tüm kayıtlar silindi' : 'Geri dönüş noktası kaydedilemediği için hiçbir şey silinmedi.', ok ? 'ok' : 'err');
+          }}
+        />
+      )}
+      {dialog?.kind === 'undo' && snap && (
+        <ConfirmSheet
+          title="Geri alınsın mı?"
+          confirmLabel="Geri al"
+          message={
+            <p>
+              Defter, {fmtDateTime(snap.at)} tarihindeki hâline döner ({snap.data.customers.length} müşteri, {snap.data.jobs.length} iş, {snap.data.payments.length}{' '}
+              ödeme). O tarihten sonra girdiğiniz kayıtlar bu hâlde yoktur.
+            </p>
+          }
+          onCancel={() => setDialog(null)}
+          onConfirm={async () => {
+            setDialog(null);
+            toast((await restoreSnapshot()) ? 'Geri alındı' : 'Geri dönüş noktası bulunamadı', 'ok');
+          }}
+        />
+      )}
     </div>
   );
 }
 
-function Action({ icon, tone, title, text, onClick, loading }: { icon: React.ReactNode; tone: string; title: string; text: string; onClick: () => void; loading?: boolean }) {
+function Action({ icon, cls, title, text, onClick, loading }: { icon: ReactNode; cls: string; title: string; text: string; onClick: () => void; loading?: boolean }) {
   return (
-    <button onClick={onClick} disabled={loading} className="flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-white/[0.03] disabled:opacity-60">
-      <div className={`grid h-10 w-10 place-items-center rounded-xl ${tone}`}>{loading ? <Loader2 size={18} className="animate-spin" /> : icon}</div>
-      <div className="min-w-0">
-        <div className="font-medium text-zinc-100">{title}</div>
-        <div className="text-xs text-zinc-500">{text}</div>
-      </div>
+    <button type="button" onClick={onClick} disabled={loading} className="flex w-full items-center gap-3 px-3 py-3 text-left transition-colors hover:bg-ink-soft/40 active:bg-ink-soft disabled:opacity-60">
+      <span className={cx('shrink-0', cls)}>{loading ? <Loader2 size={22} className="animate-spin" /> : icon}</span>
+      <span className="min-w-0">
+        <span className="block text-[16px] font-semibold text-graphite">{title}</span>
+        <span className="block text-[14px] text-pencil">{text}</span>
+      </span>
     </button>
   );
 }

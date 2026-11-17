@@ -80,10 +80,13 @@ export interface Settings {
   rates: Rates;
   ratesUpdatedAt?: string;
   ratesSource?: string;
+  lastBackupAt?: string; // son Excel/JSON yedeğinin alındığı an
 }
 
 export interface AppData {
   version: 1;
+  rev?: number; // her kayıtta artan sürüm numarası (sekmeler arası çakışma ve en yeni kopyayı seçmek için)
+  savedAt?: string;
   customers: Customer[];
   jobs: Job[];
   payments: Payment[];

@@ -3,15 +3,18 @@ import { CircleCheck, Loader2, RefreshCw, Trash2 } from 'lucide-react';
 import { useStore } from '../../store/AppStore';
 import { useUI } from '../../ui-context';
 import { uid } from '../../lib/id';
-import { fmt, fmtBreakdown, parseNum, SYMBOL, today } from '../../lib/format';
+import { fmt, fmtDate, fmtRate, fmtWords, parseNum, SYMBOL, today } from '../../lib/format';
 import { fetchRates } from '../../lib/rates';
 import { computePayment, convert, creditedMoney, EPS, jobPayStates, ledger, round2, subMoney } from '../../lib/money';
 import type { Currency, Job, PaymentType, Rates } from '../../types';
 import { CURRENCIES } from '../../types';
-import { Button, Field, Input, Segmented, Select, Sheet, cx } from '../ui';
+import { Button, ConfirmSheet, Field, Input, Segmented, Select, Sheet, cx } from '../ui';
 
 const GENEL = '__genel__';
 const toInput = (n: number) => (Number.isFinite(n) ? String(round2(n)).replace('.', ',') : '');
+/** Kurlar tam hassasiyetle (yuvarlanmadan) gösterilir; aksi halde düzenleme sırasında bakiye kayar */
+const toRateInput = (n: number) => (Number.isFinite(n) ? String(Math.round(n * 1e6) / 1e6).replace('.', ',') : '');
+const isDate = (s: string) => /^\d{4}-\d{2}-\d{2}$/.test(s) && !Number.isNaN(Date.parse(s)) && s >= '2000-01-01' && s <= '2100-12-31';
 const TYPE_SHORT: Record<PaymentType, string> = { havale: 'Havale', nakit: 'Nakit', cek: 'Çek', urun: 'Ürün' };
 
 /**
@@ -27,7 +30,8 @@ export function PaymentForm({ id, customerId, jobId }: { id?: string; customerId
   const presetJob = data.jobs.find((j) => j.id === (existing?.jobId ?? jobId));
   const settingsRates = data.settings.rates;
 
-  const [cid, setCid] = useState(existing?.customerId ?? customerId ?? presetJob?.customerId ?? data.customers[0]?.id ?? '');
+  // Müşteri kendiliğinden seçilmez (yanlış müşteriye ödeme yazmayı önlemek için)
+  const [cid, setCid] = useState(existing?.customerId ?? customerId ?? presetJob?.customerId ?? '');
 
   // Bu ödeme hariç müşterinin işleri, ödemeleri ve açık bakiyesi
   const custJobs = useMemo(() => data.jobs.filter((j) => j.customerId === cid), [data.jobs, cid]);
@@ -52,10 +56,10 @@ export function PaymentForm({ id, customerId, jobId }: { id?: string; customerId
 
   const [currency, setCurrency] = useState<Currency>(existing?.currency ?? presetJob?.currency ?? 'TRY');
   const [rateStr, setRateStr] = useState<Record<'USD' | 'EUR', string>>({
-    USD: toInput(existing?.rates.USD ?? settingsRates.USD),
-    EUR: toInput(existing?.rates.EUR ?? settingsRates.EUR),
+    USD: toRateInput(existing?.rates.USD ?? settingsRates.USD),
+    EUR: toRateInput(existing?.rates.EUR ?? settingsRates.EUR),
   });
-  const rates: Rates = { USD: parseNum(rateStr.USD), EUR: parseNum(rateStr.EUR) };
+  const rates: Rates = { USD: parseNum(rateStr.USD, { rate: true }), EUR: parseNum(rateStr.EUR, { rate: true }) };
   const safeRates: Rates = { USD: rates.USD > 0 ? rates.USD : settingsRates.USD, EUR: rates.EUR > 0 ? rates.EUR : settingsRates.EUR };
 
   // Tutar: iş seçilince kalan tutarla otomatik dolar (kullanıcı değiştirene kadar)
@@ -69,7 +73,15 @@ export function PaymentForm({ id, customerId, jobId }: { id?: string; customerId
 
   // Hangi döviz bakiyesinden düşülecek? (otomatik)
   const openCur = CURRENCIES.filter((c) => open[c] > EPS);
-  const target: Currency | 'AUTO' = job ? job.currency : openCur.length === 1 ? openCur[0] : openCur.length > 1 ? 'AUTO' : currency;
+  const jobChanged = existing ? (existing.jobId ?? GENEL) !== jobSel : false;
+  const derivedTarget: Currency | 'AUTO' = openCur.length === 1 ? openCur[0] : openCur.length > 1 ? 'AUTO' : currency;
+  const target: Currency | 'AUTO' = job
+    ? job.currency
+    : existing && !jobChanged && currency === existing.currency
+      ? existing.mode === 'auto'
+        ? 'AUTO'
+        : existing.targetCurrency
+      : derivedTarget;
 
   // Kur yalnızca ödenen döviz ile düşülecek döviz farklıysa sorulur
   const involved = new Set<Currency>(target === 'AUTO' ? openCur : [target]);
@@ -82,9 +94,12 @@ export function PaymentForm({ id, customerId, jobId }: { id?: string; customerId
     setJobSel(v);
     const j = custJobs.find((x) => x.id === v);
     if (j) {
-      setCurrency(j.currency);
-      setAmountStr(fillFor(j, j.currency, safeRates));
-      setAuto(true);
+      // Yazılmış bir tutar varsa ezilmez; yalnızca boşsa işin kalanı yazılır
+      if (!amountStr.trim() || auto) {
+        setCurrency(j.currency);
+        setAmountStr(fillFor(j, j.currency, safeRates));
+        setAuto(true);
+      }
     } else if (auto) {
       setAmountStr('');
       setAuto(false);
@@ -99,7 +114,7 @@ export function PaymentForm({ id, customerId, jobId }: { id?: string; customerId
   const setRate = (c: 'USD' | 'EUR', v: string) => {
     const next = { ...rateStr, [c]: v };
     setRateStr(next);
-    const r = { USD: parseNum(next.USD), EUR: parseNum(next.EUR) };
+    const r = { USD: parseNum(next.USD, { rate: true }), EUR: parseNum(next.EUR, { rate: true }) };
     if (auto && job && r.USD > 0 && r.EUR > 0) setAmountStr(fillFor(job, currency, r));
   };
 
@@ -107,7 +122,7 @@ export function PaymentForm({ id, customerId, jobId }: { id?: string; customerId
     setLoadingRate(true);
     try {
       const r = await fetchRates();
-      setRateStr({ USD: toInput(r.rates.USD), EUR: toInput(r.rates.EUR) });
+      setRateStr({ USD: toRateInput(r.rates.USD), EUR: toRateInput(r.rates.EUR) });
       if (auto && job) setAmountStr(fillFor(job, currency, r.rates));
     } catch {
       toast('Kur alınamadı, elle girin', 'err');
@@ -119,8 +134,14 @@ export function PaymentForm({ id, customerId, jobId }: { id?: string; customerId
   const amt = parseNum(amountStr);
   const ratesOk = rateCurs.every((c) => rates[c] > 0);
 
-  const preview =
-    amt > 0 && ratesOk && cid
+  // Düzenlemede para ile ilgili hiçbir şey değişmediyse kayıtlı dağılım aynen korunur
+  const sameRate = (c: 'USD' | 'EUR') => !existing || Math.abs(safeRates[c] - existing.rates[c]) < 1e-9;
+  const moneyUnchanged =
+    !!existing && round2(amt) === existing.amount && currency === existing.currency && !jobChanged && cid === existing.customerId && sameRate('USD') && sameRate('EUR');
+
+  const preview = moneyUnchanged
+    ? { ...existing!, date, type }
+    : amt > 0 && ratesOk && cid
       ? computePayment(
           {
             id: existing?.id ?? 'yeni',
@@ -138,51 +159,89 @@ export function PaymentForm({ id, customerId, jobId }: { id?: string; customerId
         )
       : null;
 
+  const before = existing ? subMoney(open, creditedMoney(existing)) : null;
   const after = preview ? subMoney(open, creditedMoney(preview)) : open;
   const jobCredit = preview && job ? preview.allocations.filter((a) => a.currency === job.currency).reduce((s, a) => s + a.amount, 0) : 0;
   const jobLeft = job ? round2(remainingOf(job) - jobCredit) : 0;
 
-  const valid = !!preview && (type !== 'urun' || !!description.trim());
+  const dateOk = isDate(date);
+  const amountBad = amountStr.trim() !== '' && !(amt > 0);
+  const rateWarn = rateCurs.filter((c) => rates[c] > 0 && Math.abs(rates[c] / settingsRates[c] - 1) > 0.2);
+  const valid = !!preview && dateOk && !!cid && (type !== 'urun' || !!description.trim());
+  const missing = !cid
+    ? 'Müşteri seçin'
+    : amountBad || !(amt > 0)
+      ? 'Tutarı yazın'
+      : !ratesOk
+        ? 'Kuru yazın'
+        : !dateOk
+          ? 'Tarih seçin'
+          : type === 'urun' && !description.trim()
+            ? 'Alınan ürünün adını yazın'
+            : '';
 
-  const save = () => {
+  // Borçtan fazla ödeme (fazladan yazılmış bir sıfır gibi hatalara karşı)
+  const over = CURRENCIES.filter((c) => after[c] < -EPS && after[c] < open[c] - EPS).map((c) => ({ c, v: -after[c] }));
+  const futureDate = dateOk && date > today();
+  const oldDate = dateOk && date < `${new Date().getFullYear() - 3}-01-01`;
+  const [askOver, setAskOver] = useState(false);
+  const [askDelete, setAskDelete] = useState(false);
+
+  const doSave = () => {
     if (!valid || !preview) return;
     const p = { ...preview, id: existing?.id ?? uid(), description: description.trim() || undefined, note: note.trim() || undefined };
     dispatch({ type: 'upsertPayment', payment: p });
-    toast(existing ? 'Ödeme güncellendi' : `Tahsil edildi: ${fmt(p.amount, p.currency)}`);
+    toast(existing ? 'Ödeme güncellendi' : `Ödeme kaydedildi: ${fmt(p.amount, p.currency)}`);
     close();
+  };
+  const save = () => {
+    if (!valid) return;
+    if (over.length && !moneyUnchanged) setAskOver(true);
+    else doSave();
   };
 
   const remove = () => {
-    if (!existing || !confirm('Bu ödeme kaydı silinsin mi?')) return;
-    dispatch({ type: 'deletePayment', id: existing.id });
-    toast('Ödeme silindi');
+    if (!existing) return;
+    const removed = existing;
+    dispatch({ type: 'deletePayment', id: removed.id });
     close();
+    toast(`Ödeme silindi: ${fmt(removed.amount, removed.currency)}`, 'ok', { label: 'Geri al', run: () => dispatch({ type: 'upsertPayment', payment: removed }) });
   };
+  const rateFromSettings = !existing && rateCurs.every((c) => Math.abs(rates[c] - settingsRates[c]) < 1e-9);
 
   const Radio = ({ on }: { on: boolean }) => (
-    <span className={cx('grid h-5 w-5 shrink-0 place-items-center rounded-full ring-2', on ? 'bg-emerald-400 ring-emerald-400' : 'ring-zinc-600')}>
-      {on && <span className="h-2 w-2 rounded-full bg-zinc-950" />}
+    <span className={cx('grid h-5 w-5 shrink-0 place-items-center rounded-full ring-2', on ? 'bg-paid ring-paid' : 'ring-faint')}>
+      {on && <span className="h-2 w-2 rounded-full bg-white" />}
     </span>
   );
   const optCls = (on: boolean) =>
-    cx('flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left ring-1 ring-inset transition', on ? 'bg-emerald-400/10 ring-emerald-400/50' : 'bg-zinc-950/50 ring-white/10 hover:ring-white/20');
+    cx('flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left ring-1 ring-inset transition', on ? 'bg-paid-soft ring-paid' : 'bg-paper ring-line hover:ring-pencil/40');
 
   return (
     <Sheet
       open
       onClose={close}
-      title={existing ? 'Ödemeyi Düzenle' : 'Tahsilat Al'}
+      title={existing ? 'Ödemeyi düzenle' : 'Ödeme aldım'}
       footer={
-        <div className="flex gap-2">
-          {existing && (
-            <Button variant="danger" onClick={remove} aria-label="Sil">
-              <Trash2 size={18} />
+        <div>
+          {!valid && missing && <p className="mb-2 text-center text-[14px] text-pencil">{missing}</p>}
+          <div className="flex gap-2">
+            {existing && (
+              <Button variant="danger" onClick={() => setAskDelete(true)} aria-label="Ödemeyi sil">
+                <Trash2 size={18} />
+              </Button>
+            )}
+            <Button variant="success" className="flex-1 text-[16px]" onClick={save} disabled={!valid}>
+              <CircleCheck size={20} />
+              {existing
+                ? 'Değişikliği kaydet'
+                : type === 'urun'
+                  ? 'Ürünü borçtan düş'
+                  : preview
+                    ? `${fmt(preview.amount, preview.currency)} ödemeyi kaydet`
+                    : 'Ödemeyi kaydet'}
             </Button>
-          )}
-          <Button variant="success" className="min-h-12 flex-1 text-base" onClick={save} disabled={!valid}>
-            <CircleCheck size={20} />
-            {preview ? `${fmt(preview.amount, preview.currency)} Tahsil Et` : 'Tahsil Et'}
-          </Button>
+          </div>
         </div>
       }
     >
@@ -195,9 +254,14 @@ export function PaymentForm({ id, customerId, jobId }: { id?: string; customerId
               onChange={(e) => {
                 setCid(e.target.value);
                 setJobSel(GENEL);
+                setShowJobs(false);
                 setAuto(false);
               }}
+              className={cx(!cid && 'text-faint')}
             >
+              <option value="" disabled>
+                Müşteri seçin
+              </option>
               {data.customers
                 .slice()
                 .sort((a, b) => a.name.localeCompare(b.name, 'tr'))
@@ -207,49 +271,57 @@ export function PaymentForm({ id, customerId, jobId }: { id?: string; customerId
                   </option>
                 ))}
             </Select>
+            {cid && <span className="num mt-1 block text-[15px] text-due">Şu anki borcu: {fmtWords(open)}</span>}
           </Field>
         ) : (
-          <div className="flex items-center justify-between gap-3 rounded-xl bg-white/[0.03] px-3 py-2.5">
-            <span className="font-semibold text-white">{data.customers.find((c) => c.id === cid)?.name}</span>
-            <span className="num text-right text-sm text-amber-300">Borç: {fmtBreakdown(open, { hideZero: true })}</span>
+          <div className="flex items-center justify-between gap-3 rounded-lg bg-desk px-3 py-2.5">
+            <span className="text-[17px] font-semibold text-graphite">{data.customers.find((c) => c.id === cid)?.name}</span>
+            <span className="num text-right text-[15px] text-due">Şu anki borcu: {fmtWords(before ?? open)}</span>
           </div>
         )}
 
         {/* 2. Varsayılan: genel borçtan düş. İstenirse belirli bir işe yazılır. */}
         {!showJobs ? (
-          <div className="flex items-center justify-between gap-3 text-sm">
-            <span className="text-zinc-400">Ödeme müşterinin genel borcundan düşülür.</span>
-            {openJobs.length > 0 && (
-              <button type="button" onClick={() => setShowJobs(true)} className="shrink-0 text-xs font-medium text-sky-300">
-                Bir işe yaz
-              </button>
-            )}
-          </div>
+          cid && (
+            <div className="flex items-center justify-between gap-3 text-[15px]">
+              <span className="text-pencil">Ödeme müşterinin genel borcundan düşülür.</span>
+              {openJobs.length > 0 && (
+                <button type="button" onClick={() => setShowJobs(true)} className="min-h-11 shrink-0 rounded-lg border border-line px-3 text-[14px] font-semibold text-ink">
+                  Bir işe yaz
+                </button>
+              )}
+            </div>
+          )
         ) : (
           <div>
             <div className="mb-1.5 flex items-center justify-between">
-              <span className="text-xs font-medium uppercase tracking-wide text-zinc-400">Nereden düşülsün?</span>
+              <span className="text-[14px] font-semibold text-pencil">Hangi işin ödemesi?</span>
               <button
                 type="button"
                 onClick={() => {
                   pickJob(GENEL);
                   setShowJobs(false);
                 }}
-                className="text-xs font-medium text-sky-300"
+                className="min-h-11 px-1 text-[14px] font-semibold text-ink"
               >
-                Vazgeç
+                Genel borçtan düş
               </button>
             </div>
             <div className="space-y-1.5">
               <button type="button" onClick={() => pickJob(GENEL)} className={optCls(jobSel === GENEL)}>
                 <Radio on={jobSel === GENEL} />
-                <span className="flex-1 text-sm font-medium text-zinc-100">Genel borçtan</span>
+                <span className="flex-1 text-[15px] font-semibold text-graphite">Genel borçtan</span>
               </button>
               {openJobs.map((j) => (
                 <button key={j.id} type="button" onClick={() => pickJob(j.id)} className={optCls(jobSel === j.id)}>
                   <Radio on={jobSel === j.id} />
-                  <span className="min-w-0 flex-1 truncate text-sm font-medium text-zinc-100">{j.title}</span>
-                  <span className="num shrink-0 text-sm font-semibold text-amber-300">{fmt(remainingOf(j), j.currency)}</span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-[15px] font-semibold leading-snug text-graphite">{j.title}</span>
+                    <span className="num block text-[13px] text-pencil">{fmtDate(j.date)}</span>
+                  </span>
+                  <span className="num shrink-0 text-right text-[14px] text-pencil">
+                    kalan <b className="text-[15px] text-due">{fmt(remainingOf(j), j.currency)}</b>
+                  </span>
                 </button>
               ))}
             </div>
@@ -258,13 +330,17 @@ export function PaymentForm({ id, customerId, jobId }: { id?: string; customerId
 
         {/* 3. Tutar */}
         <div>
-          <div className="mb-1.5 text-xs font-medium uppercase tracking-wide text-zinc-400">{type === 'urun' ? 'Ürünün değeri' : 'Alınan tutar'}</div>
+          <label htmlFor="pay-amount" className="mb-1 block text-[14px] font-semibold text-pencil">
+            {type === 'urun' ? 'Ürünün değeri' : 'Alınan tutar'}
+          </label>
           <div className="flex gap-2">
             <div className="relative flex-1">
-              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-lg text-zinc-500">{SYMBOL[currency]}</span>
+              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[20px] text-faint">{SYMBOL[currency]}</span>
               <Input
-                className="num min-h-14 pl-9 text-2xl font-bold"
+                id="pay-amount"
+                className={cx('figure min-h-14 pl-9 text-[26px] font-semibold', amountBad && 'border-due focus:border-due focus:ring-due/15')}
                 inputMode="decimal"
+                autoComplete="off"
                 value={amountStr}
                 onChange={(e) => {
                   setAmountStr(e.target.value);
@@ -274,83 +350,161 @@ export function PaymentForm({ id, customerId, jobId }: { id?: string; customerId
                 placeholder="0"
               />
             </div>
-            <Segmented value={currency} onChange={pickCurrency} options={CURRENCIES.map((c) => ({ value: c, label: SYMBOL[c] }))} className="w-36 [&>button]:min-h-12" />
+            <Segmented value={currency} onChange={pickCurrency} label="Ödenen para birimi" options={CURRENCIES.map((c) => ({ value: c, label: SYMBOL[c] }))} className="w-36 [&>button]:min-h-12" />
           </div>
+          {amountBad ? (
+            <p className="mt-1 text-[14px] font-semibold text-due">Tutar anlaşılamadı. Örnek: 10.000 veya 1.250,50</p>
+          ) : amt > 0 ? (
+            <p className="num mt-1 text-[14px] text-pencil">
+              Okunan tutar: <b className="text-graphite">{fmt(round2(amt), currency, { decimals: !Number.isInteger(round2(amt)) })}</b>
+            </p>
+          ) : null}
           {job && currency !== job.currency && (
-            <p className="mt-1.5 text-xs text-zinc-500">
-              {SYMBOL[job.currency]} cinsinden iş için {SYMBOL[currency]} olarak ödeme alıyorsunuz.
+            <p className="mt-1 text-[14px] text-pencil">
+              {SYMBOL[job.currency]} cinsinden işe {SYMBOL[currency]} olarak ödeme alıyorsunuz.
             </p>
           )}
         </div>
 
         {/* 4. Kur (yalnızca gerekirse) */}
         {rateCurs.length > 0 && (
-          <div className="rounded-xl bg-sky-400/[0.06] p-3 ring-1 ring-inset ring-sky-400/20">
-            <div className="mb-2 flex items-center justify-between">
-              <span className="text-xs font-medium uppercase tracking-wide text-sky-200/80">Ödeme günkü kur</span>
-              <button type="button" onClick={pullRate} className="inline-flex items-center gap-1.5 text-xs font-medium text-sky-300">
-                {loadingRate ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />} Güncel kuru getir
+          <div className="rounded-lg border border-ink/25 bg-ink-soft p-3">
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <span className="text-[15px] font-semibold text-ink">Ödeme günkü kur</span>
+              <button type="button" onClick={pullRate} className="inline-flex min-h-9 items-center gap-1.5 text-[14px] font-semibold text-ink">
+                {loadingRate ? <Loader2 size={15} className="animate-spin" /> : <RefreshCw size={15} />} İnternetten al
               </button>
             </div>
             <div className={cx('grid gap-2', rateCurs.length > 1 && 'grid-cols-2')}>
               {rateCurs.map((c) => (
                 <label key={c} className="flex items-center gap-2">
-                  <span className="whitespace-nowrap text-sm text-zinc-400">1 {SYMBOL[c]} =</span>
-                  <Input className="num" inputMode="decimal" value={rateStr[c]} onChange={(e) => setRate(c, e.target.value)} onFocus={(e) => e.target.select()} />
-                  <span className="text-sm text-zinc-400">₺</span>
+                  <span className="whitespace-nowrap text-[15px] text-pencil">1 {SYMBOL[c]} =</span>
+                  <Input
+                    className={cx('num', !(rates[c] > 0) && 'border-due')}
+                    inputMode="decimal"
+                    autoComplete="off"
+                    value={rateStr[c]}
+                    onChange={(e) => setRate(c, e.target.value)}
+                    onFocus={(e) => e.target.select()}
+                  />
+                  <span className="text-[15px] text-pencil">₺</span>
                 </label>
               ))}
             </div>
+            {rateFromSettings && (
+              <p className="mt-2 text-[14px] text-pencil">
+                Ayarlardaki kur yazıldı{data.settings.ratesUpdatedAt ? ` (${fmtDate(data.settings.ratesUpdatedAt.slice(0, 10))})` : ''}. Ödeme günkü kur farklıysa düzeltin.
+              </p>
+            )}
+            {rateWarn.map((c) => (
+              <p key={c} className="mt-2 text-[14px] font-semibold text-due">
+                Bu {SYMBOL[c]} kuru, kayıtlı kurdan ({fmtRate(settingsRates[c])}) çok farklı. Doğru yazdığınızdan emin olun.
+              </p>
+            ))}
           </div>
         )}
 
         {/* Sonuç */}
         {preview && (
-          <div className="rounded-xl bg-emerald-400/[0.07] p-3 ring-1 ring-inset ring-emerald-400/20">
-            <div className="flex items-baseline justify-between gap-2 text-sm">
-              <span className="text-zinc-400">Borçtan düşecek</span>
-              <span className="num text-base font-bold text-emerald-300">{preview.allocations.map((a) => fmt(a.amount, a.currency)).join(' + ')}</span>
+          <div className="rounded-lg border border-paid/30 bg-paid-soft p-3">
+            <div className="flex items-baseline justify-between gap-2 text-[15px]">
+              <span className="text-pencil">Borçtan düşecek</span>
+              <span className="figure text-[19px] font-semibold text-paid">{preview.allocations.map((a) => fmt(a.amount, a.currency)).join(' + ')}</span>
             </div>
             {job && (
-              <div className="mt-1.5 text-sm">
+              <div className="mt-1.5 text-[15px]">
                 {jobLeft <= EPS ? (
-                  <span className="inline-flex flex-wrap items-center gap-1.5 font-medium text-emerald-300">
+                  <span className="inline-flex flex-wrap items-center gap-1.5 font-semibold text-paid">
                     <CircleCheck size={16} /> “{job.title}” tamamen kapanacak
-                    {jobLeft < -EPS && <span className="num font-normal text-sky-300">(fazlası {fmt(-jobLeft, job.currency)} diğer borçlardan düşer)</span>}
+                    {jobLeft < -EPS && <span className="num font-normal text-advance">(fazlası {fmt(-jobLeft, job.currency)} diğer borçlardan düşer)</span>}
                   </span>
                 ) : (
-                  <span className="text-zinc-300">
-                    “{job.title}” için kalan: <span className="num font-semibold text-amber-300">{fmt(jobLeft, job.currency)}</span>
+                  <span className="text-pencil">
+                    “{job.title}” için kalan: <span className="num font-semibold text-due">{fmt(jobLeft, job.currency)}</span>
                   </span>
                 )}
               </div>
             )}
-            <div className="mt-1.5 flex items-baseline justify-between gap-2 border-t border-white/5 pt-1.5 text-sm">
-              <span className="text-zinc-400">Müşterinin kalan borcu</span>
-              <span className="num font-semibold text-zinc-100">{fmtBreakdown(after, { hideZero: true })}</span>
+            <div className="mt-1.5 flex items-baseline justify-between gap-2 border-t border-paid/20 pt-1.5 text-[15px]">
+              <span className="text-pencil">Kaydedince kalan borç</span>
+              <span className="num font-semibold text-graphite">{fmtWords(after)}</span>
             </div>
+            {over.length > 0 && (
+              <p className="mt-1.5 text-[15px] font-semibold text-due">
+                Borcundan fazla: {over.map((o) => fmt(o.v, o.c)).join(' + ')} fazla ödeme olarak kalacak. Tutarı kontrol edin.
+              </p>
+            )}
+            {before && !moneyUnchanged && (
+              <div className="flex items-baseline justify-between gap-2 text-[14px]">
+                <span className="text-faint">Değiştirmeden önce</span>
+                <span className="num text-pencil">{fmtWords(before)}</span>
+              </div>
+            )}
           </div>
         )}
 
         {/* 5. Ödeme şekli */}
         <Field label="Ödeme şekli">
-          <Segmented value={type} onChange={setType} options={(Object.keys(TYPE_SHORT) as PaymentType[]).map((t) => ({ value: t, label: TYPE_SHORT[t] }))} />
+          <Segmented value={type} onChange={setType} label="Ödeme şekli" options={(Object.keys(TYPE_SHORT) as PaymentType[]).map((t) => ({ value: t, label: TYPE_SHORT[t] }))} />
         </Field>
         {type === 'urun' && (
-          <Field label="Alınan ürün / cihaz" hint="Para girmese de borçtan düşülür.">
-            <Input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Örn. Dizüstü bilgisayar" />
+          <Field label="Alınan ürün veya cihaz" hint="Para girmese de borçtan düşülür.">
+            <Input value={description} maxLength={120} onChange={(e) => setDescription(e.target.value)} placeholder="Örn. Dizüstü bilgisayar" />
           </Field>
         )}
 
         <div className="grid grid-cols-[auto_1fr] gap-3">
-          <Field label="Tarih">
-            <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-40" />
+          <Field
+            label="Tarih"
+            hint={!dateOk ? <span className="font-semibold text-due">Tarih seçin</span> : futureDate ? (
+                <span className="font-semibold text-due">İleri tarih: {fmtDate(date)}</span>
+              ) : oldDate ? (
+                <span className="font-semibold text-due">Çok eski tarih: {fmtDate(date)}</span>
+              ) : undefined
+            }
+          >
+            <Input type="date" required value={date} onChange={(e) => setDate(e.target.value)} className={cx('w-40', !dateOk && 'border-due')} />
           </Field>
-          <Field label="Not">
-            <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Opsiyonel" />
+          <Field label="Not (isteğe bağlı)">
+            <Input value={note} maxLength={300} onChange={(e) => setNote(e.target.value)} placeholder="Dekont no, açıklama" />
           </Field>
         </div>
       </div>
+      {askOver && preview && (
+        <ConfirmSheet
+          title="Borcundan fazla ödeme"
+          confirmLabel="Yine de kaydet"
+          message={
+            <>
+              <p>
+                {data.customers.find((c) => c.id === cid)?.name} müşterisinin borcu {fmtWords(open)}. Girdiğiniz {fmt(preview.amount, preview.currency)} bunu aşıyor; kaydederseniz{' '}
+                <b>{over.map((o) => fmt(o.v, o.c)).join(' + ')}</b> fazla ödeme olarak görünecek.
+              </p>
+              <p className="mt-2 text-pencil">Tutarı yanlış yazdıysanız Vazgeç'e basıp düzeltin.</p>
+            </>
+          }
+          onCancel={() => setAskOver(false)}
+          onConfirm={() => {
+            setAskOver(false);
+            doSave();
+          }}
+        />
+      )}
+      {askDelete && existing && (
+        <ConfirmSheet
+          title="Ödeme silinsin mi?"
+          confirmLabel="Ödemeyi sil"
+          danger
+          message={
+            <p>
+              {data.customers.find((c) => c.id === existing.customerId)?.name} müşterisinden {fmtDate(existing.date)} tarihinde alınan <b>{fmt(existing.amount, existing.currency)}</b> silinecek.
+              Müşterinin borcu {existing.allocations.map((a) => fmt(a.amount, a.currency)).join(' + ')} artacak.
+            </p>
+          }
+          onCancel={() => setAskDelete(false)}
+          onConfirm={remove}
+        />
+      )}
     </Sheet>
   );
 }
