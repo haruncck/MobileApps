@@ -1,13 +1,18 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { FileJson, FileSpreadsheet, Loader2, RefreshCw, RotateCcw, ShieldAlert, ShieldCheck, Smartphone, Trash2, Upload } from 'lucide-react';
+import { FileJson, FileSpreadsheet, Loader2, Plus, RefreshCw, RotateCcw, ShieldAlert, ShieldCheck, Smartphone, Trash2, Upload, X } from 'lucide-react';
+import { jobSuggestions, newTemplate } from '../lib/templates';
+import { fmt, SYMBOL } from '../lib/format';
+import { CURRENCIES } from '../types';
+import type { Currency } from '../types';
+import { round2 } from '../lib/money';
 import { useStore } from '../store/AppStore';
 import { useUI } from '../ui-context';
 import { fmtRate, parseNum } from '../lib/format';
 import { emptyData } from '../lib/seed';
 import { loadSnapshot } from '../services/storage';
 import type { AppData } from '../types';
-import { Button, ConfirmSheet, Field, Input, Ledger, SectionTitle, Sheet, cx } from '../components/ui';
+import { Button, ConfirmSheet, Field, Input, Ledger, SectionTitle, Segmented, Sheet, cx } from '../components/ui';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type InstallEvent = any;
@@ -145,6 +150,10 @@ export function Settings() {
           onChange={(e) => onImport(e.target.files?.[0])}
         />
       </Ledger>
+
+      {/* Hazır işler */}
+      <SectionTitle>Hazır işler</SectionTitle>
+      <Templates />
 
       {/* Kurlar */}
       <SectionTitle>Döviz kurları</SectionTitle>
@@ -324,5 +333,82 @@ function Action({ icon, cls, title, text, onClick, loading }: { icon: ReactNode;
         <span className="block text-[14px] text-pencil">{text}</span>
       </span>
     </button>
+  );
+}
+
+/** Sık yapılan işler: iş eklerken tek dokunuşla ad ve tutar dolar */
+function Templates() {
+  const { data, dispatch } = useStore();
+  const { toast } = useUI();
+  const list = data.settings.templates ?? [];
+  const [title, setTitle] = useState('');
+  const [amount, setAmount] = useState('');
+  const [currency, setCurrency] = useState<Currency>('TRY');
+  const amt = parseNum(amount);
+  const ok = title.trim() && amt > 0;
+  const frequent = jobSuggestions(data, undefined, 12).filter((s) => !s.saved).slice(0, 5);
+
+  const save = (next: typeof list) => dispatch({ type: 'setTemplates', templates: next });
+  const add = () => {
+    if (!ok) return;
+    save([...list, newTemplate(title, round2(amt), currency)]);
+    setTitle('');
+    setAmount('');
+    toast('Hazır iş eklendi');
+  };
+
+  return (
+    <Ledger>
+      <div className="rows">
+        <p className="px-3 py-3 text-[14px] text-pencil">İş eklerken bu listeden seçince iş adı ve tutar kendiliğinden dolar. Tutarı yine değiştirebilirsiniz.</p>
+        {list.map((t) => (
+          <div key={t.id} className="flex items-center gap-3 px-3 py-2.5">
+            <span className="min-w-0 flex-1 truncate text-[16px] font-semibold text-graphite">{t.title}</span>
+            <span className="figure text-[17px] font-semibold text-graphite">{fmt(t.amount, t.currency)}</span>
+            <button
+              type="button"
+              aria-label={`${t.title} hazır işini sil`}
+              onClick={() => {
+                save(list.filter((x) => x.id !== t.id));
+                toast('Hazır iş silindi', 'ok', { label: 'Geri al', run: () => save(list) });
+              }}
+              className="grid h-11 w-11 place-items-center rounded-lg text-faint hover:bg-due-soft hover:text-due"
+            >
+              <X size={18} />
+            </button>
+          </div>
+        ))}
+        <div className="space-y-2 px-3 py-3">
+          <Input value={title} maxLength={120} onChange={(e) => setTitle(e.target.value)} placeholder="Yeni hazır iş, örn. Tek piston pano + devreye alma" />
+          <div className="flex gap-2">
+            <Input className="figure flex-1 text-[18px]" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="Tutar" />
+            <Segmented value={currency} onChange={setCurrency} label="Para birimi" options={CURRENCIES.map((c) => ({ value: c, label: SYMBOL[c] }))} className="w-36" />
+          </div>
+          <Button variant="primary" className="w-full" onClick={add} disabled={!ok}>
+            <Plus size={18} /> Hazır işi ekle
+          </Button>
+        </div>
+        {frequent.length > 0 && (
+          <div className="px-3 py-3">
+            <div className="mb-1.5 text-[14px] font-semibold text-pencil">Sık yazdığınız işler (eklemek için dokunun)</div>
+            <div className="flex flex-wrap gap-2">
+              {frequent.map((s) => (
+                <button
+                  key={s.title}
+                  type="button"
+                  onClick={() => {
+                    save([...list, newTemplate(s.title, s.amount, s.currency)]);
+                    toast(`Eklendi: ${s.title}`);
+                  }}
+                  className="min-h-11 rounded-lg border border-line px-3 text-left text-[14px] hover:border-ink"
+                >
+                  <span className="font-semibold text-graphite">+ {s.title}</span> <span className="figure text-pencil">{fmt(s.amount, s.currency)}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </Ledger>
   );
 }

@@ -5,6 +5,7 @@ import { useUI } from '../../ui-context';
 import { uid } from '../../lib/id';
 import { fmt, fmtDate, parseNum, SYMBOL, today } from '../../lib/format';
 import { EPS, round2 } from '../../lib/money';
+import { jobSuggestions, newTemplate } from '../../lib/templates';
 import type { Currency } from '../../types';
 import { CURRENCIES } from '../../types';
 import { Button, ConfirmSheet, Field, Input, Segmented, Select, Sheet, cx } from '../ui';
@@ -30,6 +31,7 @@ export function JobForm({ id, customerId }: { id?: string; customerId?: string }
   const [currency, setCurrency] = useState<Currency>(existing?.currency ?? (customerId ? lastCurrency(customerId) : 'TRY'));
   const [note, setNote] = useState(existing?.note ?? '');
   const [askDelete, setAskDelete] = useState(false);
+  const [saveTpl, setSaveTpl] = useState(false);
 
   const amt = parseNum(amount);
   const amountBad = amount.trim() !== '' && !(amt > 0);
@@ -59,8 +61,13 @@ export function JobForm({ id, customerId }: { id?: string; customerId?: string }
 
   const missing = !customerOk ? 'Müşteri seçin' : !title.trim() ? 'Yapılan işi yazın' : !(amt > 0) ? 'Tutarı yazın' : !dateOk ? 'Tarih seçin' : '';
 
+  const custForTpl = existing?.customerId ?? (cid && cid !== NEW ? cid : undefined);
+  const suggestions = existing ? [] : jobSuggestions(data, custForTpl);
+  const tplExists = (data.settings.templates ?? []).some((t) => t.title.toLocaleLowerCase('tr') === title.trim().toLocaleLowerCase('tr'));
+
   const save = () => {
     if (!valid) return;
+    if (saveTpl && !tplExists) dispatch({ type: 'setTemplates', templates: [...(data.settings.templates ?? []), newTemplate(title, round2(amt), currency)] });
     let customerIdFinal = cid;
     if (cid === NEW) {
       const found = data.customers.find((c) => c.name.toLocaleLowerCase('tr') === newName.trim().toLocaleLowerCase('tr'));
@@ -153,6 +160,37 @@ export function JobForm({ id, customerId }: { id?: string; customerId?: string }
         <Field label="Yapılan iş">
           <Input value={title} maxLength={120} onChange={(e) => setTitle(e.target.value)} placeholder="Örn. Hidrolik pano, PLC yazılımı" />
         </Field>
+        {suggestions.length > 0 && (
+          <div>
+            <div className="mb-1 text-[14px] font-semibold text-pencil">Hazır işler</div>
+            <div className="-mx-5 flex gap-2 overflow-x-auto px-5 pb-1">
+              {suggestions.map((s) => {
+                const on = title.trim() === s.title && parseNum(amount) === s.amount && currency === s.currency;
+                return (
+                  <button
+                    key={`${s.title}-${s.amount}`}
+                    type="button"
+                    onClick={() => {
+                      setTitle(s.title);
+                      setAmount(String(s.amount).replace('.', ','));
+                      setCurrency(s.currency);
+                    }}
+                    className={cx(
+                      'flex min-h-12 shrink-0 flex-col items-start justify-center rounded-lg border px-3 py-1 text-left transition',
+                      on ? 'border-ink bg-ink-soft' : 'border-line bg-paper hover:border-pencil/50',
+                    )}
+                  >
+                    <span className="max-w-[220px] truncate text-[14px] font-semibold text-graphite">{s.title}</span>
+                    <span className="figure text-[14px] text-pencil">
+                      {fmt(s.amount, s.currency)}
+                      {!s.saved && <span className="ml-1 text-[12px] text-faint">({s.count} kez yazıldı)</span>}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         <div>
           <label htmlFor="job-amount" className="mb-1 block text-[14px] font-semibold text-pencil">
@@ -209,6 +247,12 @@ export function JobForm({ id, customerId }: { id?: string; customerId?: string }
             <Input value={note} maxLength={300} onChange={(e) => setNote(e.target.value)} placeholder="Teklif veya fatura no" />
           </Field>
         </div>
+        {!existing && title.trim() && amt > 0 && !tplExists && (
+          <label className="flex min-h-11 items-center gap-3 text-[15px] text-graphite">
+            <input type="checkbox" checked={saveTpl} onChange={(e) => setSaveTpl(e.target.checked)} className="h-5 w-5 accent-[#1f3a93]" />
+            Bunu hazır iş olarak kaydet ({title.trim()}, {fmt(round2(amt), currency)})
+          </label>
+        )}
       </div>
       {askDelete && existing && (
         <ConfirmSheet

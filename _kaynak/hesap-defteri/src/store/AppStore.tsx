@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import type { AppData, Business, Customer, Job, Payment, Rates } from '../types';
+import type { AppData, Business, Customer, Job, JobTemplate, Payment, Rates } from '../types';
 import { loadData, loadSnapshot, requestPersistence, saveData, saveSnapshot, storedRev } from '../services/storage';
 import { emptyData } from '../lib/seed';
 import { fetchRates } from '../lib/rates';
@@ -15,7 +15,8 @@ type Action =
   | { type: 'deletePayment'; id: string }
   | { type: 'setRates'; rates: Rates; source?: string }
   | { type: 'markBackup' }
-  | { type: 'setBusiness'; business: Business };
+  | { type: 'setBusiness'; business: Business }
+  | { type: 'setTemplates'; templates: JobTemplate[] };
 
 function upsert<T extends { id: string }>(list: T[], item: T): T[] {
   const i = list.findIndex((x) => x.id === item.id);
@@ -55,6 +56,8 @@ function reducer(s: AppData, a: Action): AppData {
         ...s,
         settings: { ...s.settings, rates: a.rates, ratesUpdatedAt: new Date().toISOString(), ratesSource: a.source ?? 'Elle girildi' },
       };
+    case 'setTemplates':
+      return { ...s, settings: { ...s.settings, templates: a.templates } };
     case 'setBusiness':
       return { ...s, settings: { ...s.settings, business: a.business } };
     case 'markBackup':

@@ -158,6 +158,12 @@ export function normalizeData(raw: Raw): NormalizeResult {
         ratesUpdatedAt: opt(raw.settings?.ratesUpdatedAt),
         ratesSource: opt(raw.settings?.ratesSource),
         lastBackupAt: opt(raw.settings?.lastBackupAt),
+        templates: Array.isArray(raw.settings?.templates)
+          ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            raw.settings.templates
+              .map((t: any) => ({ id: str(t?.id) || `t-${Math.random().toString(36).slice(2)}`, title: str(t?.title).trim(), amount: round2(num(t?.amount)), currency: cur(t?.currency) ?? 'TRY' }))
+              .filter((t: { title: string; amount: number }) => t.title && Number.isFinite(t.amount) && t.amount > 0)
+          : undefined,
         business: raw.settings?.business && typeof raw.settings.business === 'object' ? { name: opt(raw.settings.business.name), phone: opt(raw.settings.business.phone), iban: opt(raw.settings.business.iban) } : undefined,
       },
     },

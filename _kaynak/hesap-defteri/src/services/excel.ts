@@ -153,7 +153,7 @@ export function exportWorkbook(data: AppData) {
   raw('_customers', data.customers);
   raw('_jobs', data.jobs);
   raw('_payments', data.payments.map((p) => ({ ...p, rates: JSON.stringify(p.rates), allocations: JSON.stringify(p.allocations) })));
-  raw('_settings', [{ USD: r.USD, EUR: r.EUR, ratesUpdatedAt: data.settings.ratesUpdatedAt ?? '', ratesSource: data.settings.ratesSource ?? '', lastBackupAt: data.settings.lastBackupAt ?? '', businessName: data.settings.business?.name ?? '', businessPhone: data.settings.business?.phone ?? '', businessIban: data.settings.business?.iban ?? '' }]);
+  raw('_settings', [{ USD: r.USD, EUR: r.EUR, ratesUpdatedAt: data.settings.ratesUpdatedAt ?? '', ratesSource: data.settings.ratesSource ?? '', lastBackupAt: data.settings.lastBackupAt ?? '', businessName: data.settings.business?.name ?? '', businessPhone: data.settings.business?.phone ?? '', businessIban: data.settings.business?.iban ?? '', templates: JSON.stringify(data.settings.templates ?? []) }]);
   const RAW = ['_customers', '_jobs', '_payments', '_settings'];
   wb.Workbook = { Sheets: wb.SheetNames.map((n) => ({ name: n, Hidden: RAW.includes(n) ? 1 : 0 })) };
 
@@ -191,6 +191,6 @@ export async function importFile(file: File): Promise<NormalizeResult> {
     customers: read('_customers'),
     jobs: read('_jobs'),
     payments: read('_payments').map((p) => ({ ...p, rates: parse(p.rates), allocations: parse(p.allocations) })),
-    settings: { rates: { USD: settings.USD, EUR: settings.EUR }, ratesUpdatedAt: settings.ratesUpdatedAt, ratesSource: settings.ratesSource, lastBackupAt: settings.lastBackupAt, business: { name: settings.businessName, phone: settings.businessPhone, iban: settings.businessIban } },
+    settings: { rates: { USD: settings.USD, EUR: settings.EUR }, ratesUpdatedAt: settings.ratesUpdatedAt, ratesSource: settings.ratesSource, lastBackupAt: settings.lastBackupAt, business: { name: settings.businessName, phone: settings.businessPhone, iban: settings.businessIban }, templates: parse(settings.templates) },
   });
 }

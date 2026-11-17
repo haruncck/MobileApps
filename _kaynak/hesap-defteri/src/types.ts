@@ -82,6 +82,14 @@ export interface Settings {
   ratesSource?: string;
   lastBackupAt?: string; // son Excel/JSON yedeğinin alındığı an
   business?: Business; // cari özetinde görünen işletme bilgileri
+  templates?: JobTemplate[]; // hazır işler
+}
+
+export interface JobTemplate {
+  id: string;
+  title: string;
+  amount: number;
+  currency: Currency;
 }
 
 export interface Business {
