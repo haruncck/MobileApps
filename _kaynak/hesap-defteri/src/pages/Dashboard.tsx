@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis, Legend } from 'recharts';
-import { Activity, ArrowDownLeft, Briefcase, CalendarRange, ChevronRight, Scale, Users } from 'lucide-react';
+import { Activity, ArrowDownLeft, Briefcase, ChevronRight, Scale } from 'lucide-react';
 import { useStore } from '../store/AppStore';
 import { useUI } from '../ui-context';
 import { balanceState, customerLedger, ledger, monthlyAverage, monthlySeries } from '../lib/money';
@@ -39,60 +39,67 @@ export function Dashboard() {
     [data.jobs, data.payments],
   );
 
-  const pct = total.jobsTRY > 0 ? Math.min(100, (total.creditedTRY / total.jobsTRY) * 100) : 0;
+  const lastMonth = series[series.length - 2];
+  const curKey = thisMonth?.key ?? '';
+  const jobsThisMonth = data.jobs.filter((j) => j.date.startsWith(curKey)).length;
+  const paysThisMonth = data.payments.filter((p) => p.date.startsWith(curKey)).length;
+  const avgCollect = avg.months ? total.receivedTRY / avg.months : 0;
+  const vsAvg = avg.avgTRY > 0 ? ((thisMonth?.isTRY ?? 0) / avg.avgTRY - 1) * 100 : 0;
+  const monthName = new Date().toLocaleDateString('tr-TR', { month: 'long', year: 'numeric' });
 
   return (
     <div>
       <header className="mb-4 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="text-sm text-zinc-500">{new Date().toLocaleDateString('tr-TR', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
-          <h1 className="text-2xl font-bold tracking-tight text-white">Genel Özet</h1>
+          <p className="text-sm capitalize text-zinc-500">{monthName}</p>
+          <h1 className="text-2xl font-bold tracking-tight text-white">Özet</h1>
         </div>
         <RatesChip />
       </header>
 
-      {/* KPI kartları */}
-      <div className="grid gap-3 md:grid-cols-3">
-        <Card className="p-4">
-          <KpiHead icon={<Briefcase size={16} />} label="Yapılan İşler Toplamı" tone="text-zinc-300" />
-          <div className="num mt-2 text-2xl font-bold text-white">{fmt(total.jobsTRY, 'TRY')}</div>
-          <div className="num mt-1 text-xs text-zinc-500">{fmtBreakdown(total.jobs)}</div>
-        </Card>
-        <Card className="p-4">
-          <KpiHead icon={<ArrowDownLeft size={16} />} label="Toplam Alınan (Tahsilat)" tone="text-emerald-300" />
-          <div className="num mt-2 text-2xl font-bold text-emerald-300">{fmt(total.creditedTRY, 'TRY')}</div>
-          <div className="num mt-1 text-xs text-zinc-500">{fmtBreakdown(total.credited)}</div>
-          <div className="num mt-1 text-[11px] text-zinc-600">Fiili tahsilat (işlem kuruyla): {fmt(total.receivedTRY, 'TRY')}</div>
-        </Card>
-        <Card className="relative overflow-hidden p-4 ring-1 ring-amber-400/20">
-          <div className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full bg-amber-500/10 blur-2xl" />
-          <KpiHead icon={<Scale size={16} />} label="Net Kalan Alacak" tone="text-amber-300" />
-          <div className="num mt-2 text-3xl font-bold text-amber-300">{fmt(total.balanceTRY, 'TRY')}</div>
-          <div className="num mt-1 text-sm font-medium text-amber-100/80">{fmtBreakdown(total.balance)}</div>
-          <div className="num mt-1 text-[11px] text-zinc-600">
-            {fmt(total.jobsTRY, 'TRY')} − {fmt(total.creditedTRY, 'TRY')}
-          </div>
-        </Card>
-      </div>
-
-      {/* Tahsilat oranı */}
-      <Card className="mt-3 p-4">
-        <div className="mb-2 flex items-center justify-between text-sm">
-          <span className="text-zinc-400">Tahsilat oranı</span>
-          <span className="num font-semibold text-zinc-100">%{pct.toFixed(1).replace('.', ',')}</span>
-        </div>
-        <div className="h-2 overflow-hidden rounded-full bg-white/5">
-          <div className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-emerald-300" style={{ width: `${pct}%` }} />
+      {/* 1. Aylık ortalama kazanç */}
+      <Card className="relative overflow-hidden p-5 ring-1 ring-amber-400/20">
+        <div className="pointer-events-none absolute -right-12 -top-12 h-40 w-40 rounded-full bg-amber-500/10 blur-2xl" />
+        <KpiHead icon={<Activity size={16} />} label="Aylık ortalama kazanç" tone="text-amber-300" />
+        <div className="num mt-2 text-4xl font-bold tracking-tight text-white">{fmt(Math.round(avg.avgTRY), 'TRY')}</div>
+        <div className="mt-1 text-sm text-zinc-400">
+          {avg.months} aylık ortalama · tahsilat ortalaması <span className="num text-emerald-300">{fmt(Math.round(avgCollect), 'TRY')}</span>/ay
         </div>
       </Card>
 
-      {/* Mini istatistikler */}
-      <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-4">
-        <Mini icon={<Activity size={15} />} label="Aylık Ort. Ciro" value={fmt(avg.avgTRY, 'TRY')} sub={`${avg.months} aylık ortalama`} />
-        <Mini icon={<CalendarRange size={15} />} label="Bu Ay İş" value={fmt(thisMonth?.isTRY ?? 0, 'TRY')} />
-        <Mini icon={<ArrowDownLeft size={15} />} label="Bu Ay Tahsilat" value={fmt(thisMonth?.tahsilatTRY ?? 0, 'TRY')} />
-        <Mini icon={<Users size={15} />} label="Açık Cari" value={`${customers.filter((x) => balanceState(x.l.balance) === 'alacak').length} / ${data.customers.length}`} sub="müşteri" />
+      {/* 2. Bu ay */}
+      <div className="mt-3 grid grid-cols-2 gap-3">
+        <Card className="p-4">
+          <KpiHead icon={<Briefcase size={16} />} label="Bu ay yapılan iş" tone="text-zinc-300" />
+          <div className="num mt-2 text-2xl font-bold text-white">{fmt(Math.round(thisMonth?.isTRY ?? 0), 'TRY')}</div>
+          <div className="mt-1 text-xs text-zinc-500">{jobsThisMonth} iş</div>
+          {avg.avgTRY > 0 && (thisMonth?.isTRY ?? 0) > 0 && (
+            <div className={`num mt-1 text-xs font-medium ${vsAvg >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+              {vsAvg >= 0 ? '▲' : '▼'} ortalamanın %{Math.abs(Math.round(vsAvg))} {vsAvg >= 0 ? 'üstünde' : 'altında'}
+            </div>
+          )}
+          <div className="num mt-2 border-t border-white/5 pt-2 text-xs text-zinc-500">Geçen ay: {fmt(Math.round(lastMonth?.isTRY ?? 0), 'TRY')}</div>
+        </Card>
+        <Card className="p-4">
+          <KpiHead icon={<ArrowDownLeft size={16} />} label="Bu ay tahsilat" tone="text-emerald-300" />
+          <div className="num mt-2 text-2xl font-bold text-emerald-300">{fmt(Math.round(thisMonth?.tahsilatTRY ?? 0), 'TRY')}</div>
+          <div className="mt-1 text-xs text-zinc-500">{paysThisMonth} ödeme</div>
+          <div className="num mt-2 border-t border-white/5 pt-2 text-xs text-zinc-500">Geçen ay: {fmt(Math.round(lastMonth?.tahsilatTRY ?? 0), 'TRY')}</div>
+        </Card>
       </div>
+
+      {/* 3. Toplam alacak */}
+      <Card className="mt-3 flex items-center gap-3 p-4" onClick={() => go({ tab: 'customers' })}>
+        <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-amber-400/10 text-amber-300">
+          <Scale size={18} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="text-xs font-medium uppercase tracking-wide text-zinc-400">Toplam alacağım</div>
+          <div className="num truncate text-xs text-zinc-500">{fmtBreakdown(total.balance, { hideZero: true })}</div>
+        </div>
+        <div className="num text-xl font-bold text-amber-300">{fmt(Math.round(total.balanceTRY), 'TRY')}</div>
+        <ChevronRight size={16} className="text-zinc-600" />
+      </Card>
 
       <div className="grid gap-x-6 lg:grid-cols-5">
         {/* Grafik */}
@@ -169,18 +176,5 @@ function KpiHead({ icon, label, tone }: { icon: React.ReactNode; label: string; 
       <span className="grid h-7 w-7 place-items-center rounded-lg bg-white/5">{icon}</span>
       {label}
     </div>
-  );
-}
-
-function Mini({ icon, label, value, sub }: { icon: React.ReactNode; label: string; value: string; sub?: string }) {
-  return (
-    <Card className="p-3">
-      <div className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-zinc-500">
-        {icon}
-        {label}
-      </div>
-      <div className="num mt-1.5 truncate text-lg font-semibold text-zinc-100">{value}</div>
-      {sub && <div className="text-[11px] text-zinc-600">{sub}</div>}
-    </Card>
   );
 }
