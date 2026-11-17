@@ -2,9 +2,9 @@ import { useMemo, useState } from 'react';
 import { ArrowLeft, Briefcase, Pencil, Phone, Plus, Search, Users, Wallet } from 'lucide-react';
 import { useStore } from '../store/AppStore';
 import { useUI } from '../ui-context';
-import { balanceState, customerLedger, EPS, jobPayStates } from '../lib/money';
+import { balanceState, customerLedger, EPS } from '../lib/money';
 import type { BalanceState } from '../lib/money';
-import { fmt } from '../lib/format';
+import { fmt, fmtBreakdown } from '../lib/format';
 import { CURRENCIES } from '../types';
 import { BalanceBadge, JobRow, MoneyChips, PaymentRow } from '../components/common';
 import { Button, Card, EmptyState, IconButton, Input, Segmented, SectionTitle, cx } from '../components/ui';
@@ -113,7 +113,6 @@ function CustomerDetail({ id }: { id: string }) {
 
   const jobs = useMemo(() => data.jobs.filter((j) => j.customerId === id).sort((a, b) => b.date.localeCompare(a.date)), [data.jobs, id]);
   const pays = useMemo(() => data.payments.filter((p) => p.customerId === id).sort((a, b) => b.date.localeCompare(a.date)), [data.payments, id]);
-  const states = useMemo(() => jobPayStates(data.jobs.filter((j) => j.customerId === id), pays), [data.jobs, pays, id]);
 
   if (!c)
     return <EmptyState icon={<Users size={26} />} title="Müşteri bulunamadı" action={<Button onClick={() => go({ tab: 'customers' })}>Listeye dön</Button>} />;
@@ -122,13 +121,21 @@ function CustomerDetail({ id }: { id: string }) {
   const state = balanceState(l.balance);
   const usedCurrencies = CURRENCIES.filter((k) => Math.abs(l.jobs[k]) > EPS || Math.abs(l.credited[k]) > EPS);
 
+  const footer = (label: string, m: typeof l.jobs, tone: string) => (
+    <div className="flex items-center justify-between bg-white/[0.03] px-4 py-3">
+      <span className="text-sm font-semibold text-zinc-300">{label}</span>
+      <span className={cx('num text-right font-bold', tone)}>{fmtBreakdown(m, { hideZero: true })}</span>
+    </div>
+  );
+
   const jobsList = (
     <Card className="divide-y divide-white/5 overflow-hidden">
       {jobs.length ? (
-        jobs.map((j) => <JobRow key={j.id} job={j} pay={states[j.id]} onClick={() => open({ kind: 'job', id: j.id })} onCollect={() => open({ kind: 'payment', customerId: id, jobId: j.id })} />)
+        jobs.map((j) => <JobRow key={j.id} job={j} onClick={() => open({ kind: 'job', id: j.id })} />)
       ) : (
         <EmptyState icon={<Briefcase size={24} />} title="Henüz iş yok" action={<Button variant="primary" onClick={() => open({ kind: 'job', customerId: id })}><Plus size={18} /> İş Ekle</Button>} />
       )}
+      {jobs.length > 0 && footer('Toplam', l.jobs, 'text-zinc-100')}
     </Card>
   );
   const paysList = (
@@ -138,6 +145,7 @@ function CustomerDetail({ id }: { id: string }) {
       ) : (
         <EmptyState icon={<Wallet size={24} />} title="Henüz ödeme yok" action={<Button variant="success" onClick={() => open({ kind: 'payment', customerId: id })}><Plus size={18} /> Ödeme Ekle</Button>} />
       )}
+      {pays.length > 0 && footer('Alınan', l.credited, 'text-emerald-300')}
     </Card>
   );
 

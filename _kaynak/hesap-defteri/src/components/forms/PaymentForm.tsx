@@ -47,6 +47,7 @@ export function PaymentForm({ id, customerId, jobId }: { id?: string; customerId
   const remainingOf = (j: Job) => states[j.id]?.remaining ?? j.amount;
 
   const [jobSel, setJobSel] = useState<string>(existing ? existing.jobId ?? GENEL : presetJob?.id ?? GENEL);
+  const [showJobs, setShowJobs] = useState(jobSel !== GENEL);
   const job = custJobs.find((j) => j.id === jobSel);
 
   const [currency, setCurrency] = useState<Currency>(existing?.currency ?? presetJob?.currency ?? 'TRY');
@@ -214,25 +215,46 @@ export function PaymentForm({ id, customerId, jobId }: { id?: string; customerId
           </div>
         )}
 
-        {/* 2. Hangi iş? */}
-        <div>
-          <div className="mb-1.5 text-xs font-medium uppercase tracking-wide text-zinc-400">Hangi işin ödemesi?</div>
-          <div className="space-y-1.5">
-            {openJobs.map((j) => (
-              <button key={j.id} type="button" onClick={() => pickJob(j.id)} className={optCls(jobSel === j.id)}>
-                <Radio on={jobSel === j.id} />
-                <span className="min-w-0 flex-1 truncate text-sm font-medium text-zinc-100">{j.title}</span>
-                <span className="num shrink-0 text-sm font-semibold text-amber-300">{fmt(remainingOf(j), j.currency)}</span>
+        {/* 2. Varsayılan: genel borçtan düş. İstenirse belirli bir işe yazılır. */}
+        {!showJobs ? (
+          <div className="flex items-center justify-between gap-3 text-sm">
+            <span className="text-zinc-400">Ödeme müşterinin genel borcundan düşülür.</span>
+            {openJobs.length > 0 && (
+              <button type="button" onClick={() => setShowJobs(true)} className="shrink-0 text-xs font-medium text-sky-300">
+                Bir işe yaz
               </button>
-            ))}
-            <button type="button" onClick={() => pickJob(GENEL)} className={optCls(jobSel === GENEL)}>
-              <Radio on={jobSel === GENEL} />
-              <span className="flex-1 text-sm text-zinc-300">
-                Genel ödeme <span className="text-zinc-500">(en eski borçtan düşülür)</span>
-              </span>
-            </button>
+            )}
           </div>
-        </div>
+        ) : (
+          <div>
+            <div className="mb-1.5 flex items-center justify-between">
+              <span className="text-xs font-medium uppercase tracking-wide text-zinc-400">Nereden düşülsün?</span>
+              <button
+                type="button"
+                onClick={() => {
+                  pickJob(GENEL);
+                  setShowJobs(false);
+                }}
+                className="text-xs font-medium text-sky-300"
+              >
+                Vazgeç
+              </button>
+            </div>
+            <div className="space-y-1.5">
+              <button type="button" onClick={() => pickJob(GENEL)} className={optCls(jobSel === GENEL)}>
+                <Radio on={jobSel === GENEL} />
+                <span className="flex-1 text-sm font-medium text-zinc-100">Genel borçtan</span>
+              </button>
+              {openJobs.map((j) => (
+                <button key={j.id} type="button" onClick={() => pickJob(j.id)} className={optCls(jobSel === j.id)}>
+                  <Radio on={jobSel === j.id} />
+                  <span className="min-w-0 flex-1 truncate text-sm font-medium text-zinc-100">{j.title}</span>
+                  <span className="num shrink-0 text-sm font-semibold text-amber-300">{fmt(remainingOf(j), j.currency)}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* 3. Tutar */}
         <div>
