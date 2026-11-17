@@ -113,7 +113,7 @@ function CustomerDetail({ id }: { id: string }) {
 
   const jobs = useMemo(() => data.jobs.filter((j) => j.customerId === id).sort((a, b) => b.date.localeCompare(a.date)), [data.jobs, id]);
   const pays = useMemo(() => data.payments.filter((p) => p.customerId === id).sort((a, b) => b.date.localeCompare(a.date)), [data.payments, id]);
-  const states = useMemo(() => jobPayStates(jobs, pays), [jobs, pays]);
+  const states = useMemo(() => jobPayStates(data.jobs.filter((j) => j.customerId === id), pays), [data.jobs, pays, id]);
 
   if (!c)
     return <EmptyState icon={<Users size={26} />} title="Müşteri bulunamadı" action={<Button onClick={() => go({ tab: 'customers' })}>Listeye dön</Button>} />;
@@ -125,7 +125,7 @@ function CustomerDetail({ id }: { id: string }) {
   const jobsList = (
     <Card className="divide-y divide-white/5 overflow-hidden">
       {jobs.length ? (
-        jobs.map((j) => <JobRow key={j.id} job={j} state={states[j.id]?.state} covered={states[j.id]?.covered} onClick={() => open({ kind: 'job', id: j.id })} />)
+        jobs.map((j) => <JobRow key={j.id} job={j} pay={states[j.id]} onClick={() => open({ kind: 'job', id: j.id })} onCollect={() => open({ kind: 'payment', customerId: id, jobId: j.id })} />)
       ) : (
         <EmptyState icon={<Briefcase size={24} />} title="Henüz iş yok" action={<Button variant="primary" onClick={() => open({ kind: 'job', customerId: id })}><Plus size={18} /> İş Ekle</Button>} />
       )}

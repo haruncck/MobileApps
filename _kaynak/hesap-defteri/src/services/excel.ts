@@ -85,7 +85,7 @@ export function exportWorkbook(data: AppData) {
   for (const c of data.customers) {
     const jobs = data.jobs.filter((j) => j.customerId === c.id).sort((a, b) => a.date.localeCompare(b.date));
     const pays = data.payments.filter((p) => p.customerId === c.id).sort((a, b) => a.date.localeCompare(b.date));
-    const st = jobPayStates(jobs, pays);
+    const st = jobPayStates(data.jobs.filter((j) => j.customerId === c.id), pays);
     const l = customerLedger(data, c.id);
     const rows: Row[] = [
       [c.name.toUpperCase()],

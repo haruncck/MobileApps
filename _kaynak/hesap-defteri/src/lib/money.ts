@@ -126,30 +126,56 @@ export function balanceState(balance: Money): BalanceState {
 
 export type JobPayState = 'alacak' | 'kismi' | 'tahsil';
 
+export interface JobPay {
+  state: JobPayState;
+  covered: number; // tahsil edilen
+  remaining: number; // kalan
+}
+
 /**
- * İş bazlı tahsil durumu: Aynı dövizdeki mahsuplar, tarih sırasına göre
- * en eski işten başlayarak (FIFO) dağıtılır.
+ * İş bazlı tahsil durumu.
+ * 1) Belirli bir işe bağlanmış ("Tahsil Et") ödemeler önce o işe yazılır.
+ * 2) Kalan / genel ödemeler aynı dövizdeki işlere en eskiden başlayarak dağıtılır.
+ *    Sıra: iş tarihi, aynı tarihte kayıt sırası (önce girilen önce kapanır).
+ * `jobs` dizisi kayıt sırasında (data.jobs sırası) verilmelidir.
  */
-export function jobPayStates(
-  jobs: Job[],
-  payments: Payment[],
-): Record<string, { state: JobPayState; covered: number }> {
-  const out: Record<string, { state: JobPayState; covered: number }> = {};
+export function jobPayStates(jobs: Job[], payments: Payment[]): Record<string, JobPay> {
+  const covered = new Map<string, number>(jobs.map((j) => [j.id, 0]));
+  const byId = new Map(jobs.map((j) => [j.id, j]));
+  const pool = emptyMoney();
+
+  for (const p of payments) {
+    for (const a of p.allocations) {
+      let amt = a.amount;
+      const target = p.jobId ? byId.get(p.jobId) : undefined;
+      if (target && target.currency === a.currency) {
+        const room = Math.max(0, target.amount - (covered.get(target.id) ?? 0));
+        const take = Math.min(room, amt);
+        covered.set(target.id, (covered.get(target.id) ?? 0) + take);
+        amt -= take;
+      }
+      pool[a.currency] += amt;
+    }
+  }
+
+  const order = new Map(jobs.map((j, i) => [j.id, i]));
   for (const cur of CURRENCIES) {
-    let pool = payments.reduce(
-      (s, p) => s + p.allocations.filter((a) => a.currency === cur).reduce((x, a) => x + a.amount, 0),
-      0,
-    );
     const list = jobs
       .filter((j) => j.currency === cur)
-      .sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
+      .sort((a, b) => a.date.localeCompare(b.date) || order.get(a.id)! - order.get(b.id)!);
     for (const j of list) {
-      const covered = Math.max(0, Math.min(j.amount, pool));
-      pool -= covered;
-      const state: JobPayState =
-        covered >= j.amount - EPS ? 'tahsil' : covered > EPS ? 'kismi' : 'alacak';
-      out[j.id] = { state, covered: round2(covered) };
+      const room = Math.max(0, j.amount - (covered.get(j.id) ?? 0));
+      const take = Math.min(room, Math.max(0, pool[cur]));
+      covered.set(j.id, (covered.get(j.id) ?? 0) + take);
+      pool[cur] -= take;
     }
+  }
+
+  const out: Record<string, JobPay> = {};
+  for (const j of jobs) {
+    const c = round2(covered.get(j.id) ?? 0);
+    const remaining = round2(j.amount - c);
+    out[j.id] = { covered: c, remaining, state: remaining <= EPS ? 'tahsil' : c > EPS ? 'kismi' : 'alacak' };
   }
   return out;
 }

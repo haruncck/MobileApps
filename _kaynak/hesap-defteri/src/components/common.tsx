@@ -1,7 +1,7 @@
 import { ArrowDownLeft, Briefcase, CircleCheck, CirclePlus, Package, UserPlus, Wallet } from 'lucide-react';
 import type { Job, Money, Payment } from '../types';
-import { CURRENCIES, JOB_STATUS_LABEL, PAYMENT_TYPE_LABEL } from '../types';
-import type { BalanceState, JobPayState } from '../lib/money';
+import { CURRENCIES, PAYMENT_TYPE_LABEL } from '../types';
+import type { BalanceState, JobPay, JobPayState } from '../lib/money';
 import { EPS } from '../lib/money';
 import { fmt, fmtDate, SYMBOL } from '../lib/format';
 import { useUI } from '../ui-context';
@@ -46,26 +46,49 @@ export function MoneyChips({ m, size = 'md', showZero = false }: { m: Money; siz
   );
 }
 
-export function JobRow({ job, state, covered, customerName, onClick }: { job: Job; state?: JobPayState; covered?: number; customerName?: string; onClick?: () => void }) {
+export function JobRow({
+  job,
+  pay,
+  customerName,
+  onClick,
+  onCollect,
+}: {
+  job: Job;
+  pay?: JobPay;
+  customerName?: string;
+  onClick?: () => void;
+  onCollect?: () => void;
+}) {
+  const open = pay && pay.state !== 'tahsil';
   return (
-    <button onClick={onClick} className="flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-white/[0.03] active:bg-white/[0.05]">
-      <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-amber-400/10 text-amber-300">
-        <Briefcase size={18} />
-      </div>
-      <div className="min-w-0 flex-1">
-        <div className="truncate font-medium text-zinc-100">{job.title}</div>
-        <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-zinc-500">
-          {customerName && <span className="text-zinc-400">{customerName}</span>}
-          <span>{fmtDate(job.date)}</span>
-          <span>· {JOB_STATUS_LABEL[job.status]}</span>
-          {state === 'kismi' && covered !== undefined && <span className="num">· Tahsil {fmt(covered, job.currency)}</span>}
+    <div className="flex w-full items-center gap-3 px-4 py-3 transition hover:bg-white/[0.03]">
+      <button onClick={onClick} className="flex min-w-0 flex-1 items-center gap-3 text-left">
+        <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-amber-400/10 text-amber-300">
+          <Briefcase size={18} />
         </div>
-      </div>
-      <div className="flex flex-col items-end gap-1">
-        <span className="num font-semibold text-zinc-100">{fmt(job.amount, job.currency)}</span>
-        {state && <JobStateBadge state={state} />}
-      </div>
-    </button>
+        <div className="min-w-0 flex-1">
+          <div className="truncate font-medium text-zinc-100">{job.title}</div>
+          <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-zinc-500">
+            {customerName && <span className="text-zinc-400">{customerName}</span>}
+            <span>{fmtDate(job.date)}</span>
+            {open && pay.state === 'kismi' && <span className="num text-amber-300/90">· Kalan {fmt(pay.remaining, job.currency)}</span>}
+          </div>
+        </div>
+        <div className="flex flex-col items-end gap-1">
+          <span className="num font-semibold text-zinc-100">{fmt(job.amount, job.currency)}</span>
+          {pay && !onCollect && <JobStateBadge state={pay.state} />}
+          {pay && onCollect && pay.state === 'tahsil' && <JobStateBadge state="tahsil" />}
+        </div>
+      </button>
+      {open && onCollect && (
+        <button
+          onClick={onCollect}
+          className="min-h-10 shrink-0 rounded-xl bg-emerald-500 px-3 text-sm font-semibold text-zinc-950 transition hover:bg-emerald-400 active:scale-95"
+        >
+          Tahsil Et
+        </button>
+      )}
+    </div>
   );
 }
 
