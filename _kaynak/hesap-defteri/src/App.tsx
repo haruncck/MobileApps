@@ -13,6 +13,7 @@ import { JobForm } from './components/forms/JobForm';
 import { PaymentForm } from './components/forms/PaymentForm';
 import { QuickAddSheet } from './components/common';
 import { Button, cx } from './components/ui';
+import { CloudBadge, CloudChoiceSheet } from './components/CloudUI';
 
 export default function App() {
   return (
@@ -88,6 +89,7 @@ function Shell() {
           <CloudOff size={13} /> Çevrimdışı
         </span>
       )}
+      <CloudBadge />
       {saveError ? (
         <span className="inline-flex items-center gap-1 font-semibold text-due">
           <CircleAlert size={13} /> Kaydedilemedi
@@ -186,6 +188,7 @@ function Shell() {
       </nav>
 
       {/* Pencereler */}
+      <CloudChoiceSheet />
       {modal?.kind === 'quick' && <QuickAddSheet />}
       {modal?.kind === 'customer' && <CustomerForm key={modal.id ?? 'new'} id={modal.id} />}
       {modal?.kind === 'job' && <JobForm key={modal.id ?? 'new'} id={modal.id} customerId={modal.customerId} />}

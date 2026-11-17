@@ -11,6 +11,7 @@ import { useUI } from '../ui-context';
 import { fmtRate, parseNum } from '../lib/format';
 import { emptyData } from '../lib/seed';
 import { loadSnapshot } from '../services/storage';
+import { CloudSettings } from '../components/CloudUI';
 import type { AppData } from '../types';
 import { Button, ConfirmSheet, Field, Input, Ledger, SectionTitle, Segmented, Sheet, cx } from '../components/ui';
 
@@ -109,6 +110,7 @@ export function Settings() {
     <div className="max-w-2xl">
       <h1 className="mb-1 text-[28px] font-bold text-graphite">Ayarlar</h1>
 
+      <CloudSettings />
       {/* Yedek */}
       <SectionTitle>Yedek</SectionTitle>
       <Ledger>

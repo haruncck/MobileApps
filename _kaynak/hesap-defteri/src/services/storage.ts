@@ -51,7 +51,7 @@ async function readIdb(): Promise<{ data: AppData | null; error?: string }> {
  * (Sıkı doğrulama yalnızca dışarıdan yüklenen yedek dosyalarına uygulanır.)
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function trustOwn(raw: any): AppData {
+export function trustOwn(raw: any): AppData {
   if (!raw || typeof raw !== 'object' || !Array.isArray(raw.customers) || !Array.isArray(raw.jobs) || !Array.isArray(raw.payments)) {
     throw new Error('Kayıt biçimi tanınmadı');
   }
