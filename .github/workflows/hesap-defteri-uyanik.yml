@@ -6,7 +6,7 @@ name: Hesap Defteri - bulutu uyanik tut
 
 on:
   schedule:
-    - cron: '23 5 */2 * *' # iki günde bir, 08:23 (Türkiye)
+    - cron: '23 5 */2 * *' # iki günde bir, 08:23 Türkiye saati (ayın 1'i her zaman dahil)
   workflow_dispatch:
 
 permissions:
@@ -18,7 +18,6 @@ jobs:
     steps:
       - name: Supabase veritabanina sorgu at
         run: |
-          set -e
           for i in 1 2 3; do
             code=$(curl -s -o out.txt -w '%{http_code}' -X POST \
               'https://fdgbqmjquvkkrgoozxwj.supabase.co/rest/v1/rpc/keepalive' \
@@ -31,10 +30,19 @@ jobs:
           echo "::error::Supabase yanit vermedi. Proje beklemeye alinmis olabilir: supabase.com > hesap-defteri > Resume project"
           exit 1
 
-      - name: Ayda bir depoya kayit dus (zamanlanmis gorev kapanmasin)
-        if: github.event_name == 'workflow_dispatch' || startsWith(format('{0}', github.event.schedule), '23 5') && contains('01,02', format('{0}', '01'))
-        uses: actions/checkout@v4
+      - name: Ayin 1'i mi?
+        id: gun
+        run: echo "ilk=$([ "$(date -u +%d)" = "01" ] && echo evet || echo hayir)" >> "$GITHUB_OUTPUT"
 
-      - name: Kayit
-        if: github.event_name == 'workflow_dispatch'
-        run: echo "manual"
+      - uses: actions/checkout@v4
+        if: steps.gun.outputs.ilk == 'evet' || github.event_name == 'workflow_dispatch'
+
+      - name: Depoya kayit dus (zamanlanmis gorev kapanmasin)
+        if: steps.gun.outputs.ilk == 'evet' || github.event_name == 'workflow_dispatch'
+        run: |
+          date -u +"%Y-%m-%d %H:%M UTC - Hesap Defteri bulutu uyanik" > .github/uyanik.txt
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .github/uyanik.txt
+          git commit -m "Hesap Defteri: aylik uyanik tutma kaydi" || exit 0
+          git push
