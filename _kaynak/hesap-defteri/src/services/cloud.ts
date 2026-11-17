@@ -62,6 +62,9 @@ export class AuthNeeded extends Error {
   }
 }
 
+export const PAUSED_MSG =
+  'Bulut sunucusuna ulaşılamadı. Uzun süre kullanılmadığı için beklemeye alınmış olabilir: bilgisayardan supabase.com’a girip “hesap-defteri” projesinde “Resume project”e basın. Kayıtlarınız bu cihazda güvende; sunucu açılınca kendiliğinden eşitlenir.';
+
 const trMsg = (m: string) =>
   /not confirmed/i.test(m)
     ? 'E-posta adresiniz henüz onaylanmadı. E-postanıza gelen bağlantıya tıklayıp tekrar deneyin.'
@@ -75,8 +78,10 @@ const trMsg = (m: string) =>
         ? 'Şifre en az 8 karakter olmalı.'
         : /email/i.test(m) && /invalid/i.test(m)
           ? 'E-posta adresi geçersiz.'
-          : /fetch|network/i.test(m)
-            ? 'İnternet bağlantısı yok.'
+          : /fetch|network|load failed|timeout|503|540|paused/i.test(m)
+            ? navigator.onLine
+              ? PAUSED_MSG
+              : 'İnternet bağlantısı yok.'
             : m;
 
 export async function signIn(email: string, password: string) {

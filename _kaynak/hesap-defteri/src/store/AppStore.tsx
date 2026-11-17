@@ -339,7 +339,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
       patchCloud({ status: 'synced', lastSyncAt: st.lastSyncAt, email: st.email });
     } catch (e) {
       if (e instanceof cloudApi.AuthNeeded) patchCloud({ status: 'needs-auth' });
-      else patchCloud({ status: navigator.onLine ? 'error' : 'offline', error: e instanceof Error ? e.message : String(e) });
+      else patchCloud({ status: navigator.onLine ? 'error' : 'offline', error: e instanceof TypeError || /fetch|network|load failed/i.test(String(e)) ? cloudApi.PAUSED_MSG : e instanceof Error ? e.message : String(e) });
     } finally {
       syncing.current = false;
       if (again.current) {
