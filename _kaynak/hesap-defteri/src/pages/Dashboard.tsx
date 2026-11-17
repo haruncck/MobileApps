@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis, Legend } from 'recharts';
 import { Activity, ArrowDownLeft, Briefcase, ChevronRight, Scale } from 'lucide-react';
 import { useStore } from '../store/AppStore';
@@ -8,12 +8,15 @@ import { fmt, fmtBreakdown, fmtCompact } from '../lib/format';
 import { BalanceBadge, JobRow, MoneyChips, PaymentRow } from '../components/common';
 import { Card, SectionTitle } from '../components/ui';
 import { RatesChip } from '../components/RatesChip';
+import { AverageDetail, MonthDetail } from '../components/MonthDetail';
+import type { MonthView } from '../components/MonthDetail';
 
 export function Dashboard() {
   const { data } = useStore();
   const { go, open } = useUI();
   const r = data.settings.rates;
 
+  const [detail, setDetail] = useState<null | { kind: 'month'; month: string; view: MonthView } | { kind: 'avg' }>(null);
   const total = useMemo(() => ledger(data.jobs, data.payments, r), [data.jobs, data.payments, r]);
   const series = useMemo(() => monthlySeries(data, 12), [data]);
   const avg = useMemo(() => monthlyAverage(data), [data]);
@@ -58,18 +61,19 @@ export function Dashboard() {
       </header>
 
       {/* 1. Aylık ortalama kazanç */}
-      <Card className="relative overflow-hidden p-5 ring-1 ring-amber-400/20">
+      <Card className="relative overflow-hidden p-5 ring-1 ring-amber-400/20" onClick={() => setDetail({ kind: 'avg' })}>
         <div className="pointer-events-none absolute -right-12 -top-12 h-40 w-40 rounded-full bg-amber-500/10 blur-2xl" />
         <KpiHead icon={<Activity size={16} />} label="Aylık ortalama kazanç" tone="text-amber-300" />
         <div className="num mt-2 text-4xl font-bold tracking-tight text-white">{fmt(Math.round(avg.avgTRY), 'TRY')}</div>
         <div className="mt-1 text-sm text-zinc-400">
           {avg.months} aylık ortalama · tahsilat ortalaması <span className="num text-emerald-300">{fmt(Math.round(avgCollect), 'TRY')}</span>/ay
         </div>
+        <More />
       </Card>
 
       {/* 2. Bu ay */}
       <div className="mt-3 grid grid-cols-2 gap-3">
-        <Card className="p-4">
+        <Card className="p-4" onClick={() => setDetail({ kind: 'month', month: curKey, view: 'jobs' })}>
           <KpiHead icon={<Briefcase size={16} />} label="Bu ay yapılan iş" tone="text-zinc-300" />
           <div className="num mt-2 text-2xl font-bold text-white">{fmt(Math.round(thisMonth?.isTRY ?? 0), 'TRY')}</div>
           <div className="mt-1 text-xs text-zinc-500">{jobsThisMonth} iş</div>
@@ -79,12 +83,14 @@ export function Dashboard() {
             </div>
           )}
           <div className="num mt-2 border-t border-white/5 pt-2 text-xs text-zinc-500">Geçen ay: {fmt(Math.round(lastMonth?.isTRY ?? 0), 'TRY')}</div>
+          <More />
         </Card>
-        <Card className="p-4">
+        <Card className="p-4" onClick={() => setDetail({ kind: 'month', month: curKey, view: 'pays' })}>
           <KpiHead icon={<ArrowDownLeft size={16} />} label="Bu ay tahsilat" tone="text-emerald-300" />
           <div className="num mt-2 text-2xl font-bold text-emerald-300">{fmt(Math.round(thisMonth?.tahsilatTRY ?? 0), 'TRY')}</div>
           <div className="mt-1 text-xs text-zinc-500">{paysThisMonth} ödeme</div>
           <div className="num mt-2 border-t border-white/5 pt-2 text-xs text-zinc-500">Geçen ay: {fmt(Math.round(lastMonth?.tahsilatTRY ?? 0), 'TRY')}</div>
+          <More />
         </Card>
       </div>
 
@@ -108,7 +114,7 @@ export function Dashboard() {
           <Card className="p-3 pt-4">
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={series} margin={{ top: 4, right: 4, left: -8, bottom: 0 }} barGap={2}>
+                <BarChart data={series} margin={{ top: 4, right: 4, left: -8, bottom: 0 }} barGap={2} onClick={(e) => { const k = series[Number(e?.activeTooltipIndex)]?.key; if (k) setDetail({ kind: 'month', month: k, view: 'jobs' }); }} style={{ cursor: 'pointer' }}>
                   <CartesianGrid vertical={false} stroke="#ffffff0d" />
                   <XAxis dataKey="label" tick={{ fill: '#71717a', fontSize: 11 }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
                   <YAxis tickFormatter={(v: number) => fmtCompact(v)} tick={{ fill: '#71717a', fontSize: 11 }} axisLine={false} tickLine={false} width={48} />
@@ -124,7 +130,7 @@ export function Dashboard() {
                 </BarChart>
               </ResponsiveContainer>
             </div>
-            <p className="px-1 pt-1 text-[11px] text-zinc-600">İşler güncel kurla, tahsilatlar işlem kuruyla TL'ye çevrilmiştir.</p>
+            <p className="px-1 pt-1 text-[11px] text-zinc-600">Bir aya dokunarak o ayın işlerini görebilirsiniz.</p>
           </Card>
         </div>
 
@@ -166,6 +172,8 @@ export function Dashboard() {
           ),
         )}
       </Card>
+      {detail?.kind === 'month' && <MonthDetail key={detail.month + detail.view} month={detail.month} view={detail.view} onClose={() => setDetail(null)} />}
+      {detail?.kind === 'avg' && <AverageDetail months={avg.months} onClose={() => setDetail(null)} onPick={(m) => setDetail({ kind: 'month', month: m, view: 'jobs' })} />}
     </div>
   );
 }
@@ -175,6 +183,14 @@ function KpiHead({ icon, label, tone }: { icon: React.ReactNode; label: string; 
     <div className={`flex items-center gap-2 text-xs font-medium uppercase tracking-wide ${tone}`}>
       <span className="grid h-7 w-7 place-items-center rounded-lg bg-white/5">{icon}</span>
       {label}
+    </div>
+  );
+}
+
+function More() {
+  return (
+    <div className="mt-2 flex items-center gap-0.5 text-xs font-medium text-zinc-500">
+      Ayrıntılar <ChevronRight size={14} />
     </div>
   );
 }
