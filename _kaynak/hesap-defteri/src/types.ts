@@ -81,6 +81,13 @@ export interface Settings {
   ratesUpdatedAt?: string;
   ratesSource?: string;
   lastBackupAt?: string; // son Excel/JSON yedeğinin alındığı an
+  business?: Business; // cari özetinde görünen işletme bilgileri
+}
+
+export interface Business {
+  name?: string;
+  phone?: string;
+  iban?: string;
 }
 
 export interface AppData {

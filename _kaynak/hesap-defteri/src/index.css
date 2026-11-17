@@ -96,3 +96,14 @@
 }
 
 .pb-nav { padding-bottom: calc(6.5rem + env(safe-area-inset-bottom)); }
+
+/* Cari özeti yazdırma: yalnızca belge basılır */
+.print-root { display: none; }
+@media print {
+  @page { size: A4; margin: 10mm; }
+  body { background: #fff !important; }
+  body > #root { display: none !important; }
+  .print-root { display: block !important; }
+  .print-root .statement-doc { width: 100% !important; padding: 0 !important; }
+  .print-root tr { break-inside: avoid; }
+}

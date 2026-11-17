@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { ArrowLeft, ChevronRight, Pencil, Phone, Search, Users } from 'lucide-react';
+import { ArrowLeft, ChevronRight, FileText, Pencil, Phone, Search, Users } from 'lucide-react';
+import { StatementSheet } from '../components/Statement';
 import { useStore } from '../store/AppStore';
 import { useUI } from '../ui-context';
 import { balanceState, customerLedger, EPS } from '../lib/money';
@@ -119,6 +120,7 @@ function CustomerDetail({ id }: { id: string }) {
   const { data } = useStore();
   const { back, open, go } = useUI();
   const [tab, setTab] = useState<'jobs' | 'pays'>('jobs');
+  const [showStatement, setShowStatement] = useState(false);
   const c = data.customers.find((x) => x.id === id);
 
   const order = (a: { date: string }, b: { date: string }, ia: number, ib: number) => b.date.localeCompare(a.date) || ib - ia;
@@ -247,7 +249,11 @@ function CustomerDetail({ id }: { id: string }) {
         <Button variant="primary" onClick={() => open({ kind: 'job', customerId: id })}>
           İş ekle
         </Button>
+        <Button variant="secondary" className="col-span-2" onClick={() => setShowStatement(true)} disabled={!jobs.length && !pays.length}>
+          <FileText size={18} /> Cari özeti gönder
+        </Button>
       </div>
+      {showStatement && <StatementSheet customerId={id} onClose={() => setShowStatement(false)} />}
 
       {c.note && <p className="mt-3 rounded-lg border border-line bg-paper px-3 py-2 text-[15px] text-pencil">{c.note}</p>}
 

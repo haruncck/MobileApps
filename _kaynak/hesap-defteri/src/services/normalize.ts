@@ -158,6 +158,7 @@ export function normalizeData(raw: Raw): NormalizeResult {
         ratesUpdatedAt: opt(raw.settings?.ratesUpdatedAt),
         ratesSource: opt(raw.settings?.ratesSource),
         lastBackupAt: opt(raw.settings?.lastBackupAt),
+        business: raw.settings?.business && typeof raw.settings.business === 'object' ? { name: opt(raw.settings.business.name), phone: opt(raw.settings.business.phone), iban: opt(raw.settings.business.iban) } : undefined,
       },
     },
     issues,
