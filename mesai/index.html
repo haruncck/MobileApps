@@ -205,9 +205,9 @@ const YER={merkez:"Merkez",sehirdisi:"Şehir dışı",yurtdisi:"Yurtdışı"};
 
 /* ---------- veri ---------- */
 let canStore=true;
-let S={name:"",days:{},sites:[],lastBackup:0,lastSent:{},pay:{net:0,div:225,kN:1.5,kT:1.5,sd:0,yd:0},siteLoc:{}};
+let S={name:"",days:{},sites:[],lastBackup:0,lastSent:{},pay:{net:0,div:225,kN:1.5,kT:1.5,sdP:0,ydP:0},siteLoc:{}};
 function load(){
-  try{const r=localStorage.getItem(KEY);if(r){const o=JSON.parse(r);S=Object.assign(S,o);S.pay=Object.assign({net:0,div:225,kN:1.5,kT:1.5,sd:0,yd:0},o.pay||{});S.siteLoc=o.siteLoc||{}}}
+  try{const r=localStorage.getItem(KEY);if(r){const o=JSON.parse(r);S=Object.assign(S,o);S.pay=Object.assign({net:0,div:225,kN:1.5,kT:1.5,sdP:0,ydP:0},o.pay||{});delete S.pay.sd;delete S.pay.yd;S.siteLoc=o.siteLoc||{}}}
   catch(e){canStore=false}
   try{localStorage.setItem(KEY+".t","1");localStorage.removeItem(KEY+".t")}catch(e){canStore=false}
 }
@@ -381,7 +381,7 @@ function settings(){
     '<label class="f"><span>Adınız soyadınız (Excel\'de görünür)</span><input class="inp" id="sName" value="'+esc(S.name)+'"></label>'+
     '<div class="list">'+
       '<button data-x="backup"><span>Yedek al<small>Son yedek: '+lb+'. Dosyayı kendinize gönderin ya da saklayın.</small></span><span>›</span></button>'+
-      '<button data-x="pay"><span>Maaş, mesai ve farklar<small>Net maaş, mesai katsayıları, şehir dışı/yurtdışı günlük farkı.</small></span><span>›</span></button>'+
+      '<button data-x="pay"><span>Maaş, mesai ve farklar<small>Net maaş, mesai katsayıları, şehir dışı/yurtdışı farkı (%).</small></span><span>›</span></button>'+
       '<button data-x="restore"><span>Yedeği yükle<small>Yeni telefona geçerken ya da veriler silinince.</small></span><span>›</span></button>'+
     '</div>'+
     '<p class="muted">Hesap kuralı: normal günde 18:00 sonrası mesai; tatil/özel günde bütün gün eksi 1 saat mola. Sonuç yarım saate yuvarlanır, her gün elle düzeltilebilir.</p>'+
@@ -495,15 +495,17 @@ function payCalc(y,m,p){
   for(let d=1;d<=n;d++){const e=S.days[key(y,m,d)];if(!e)continue;const o=otOf(e);if(e.type==="tatil")hT+=o;else hN+=o}
   let dS=0,dY=0;
   for(let d=1;d<=n;d++){const e=S.days[key(y,m,d)];if(!e)continue;if(e.loc==="sehirdisi")dS++;if(e.loc==="yurtdisi")dY++}
-  const hr=p.div?p.net/p.div:0,pN=hN*hr*p.kN,pT=hT*hr*p.kT,pS=dS*(p.sd||0),pY=dY*(p.yd||0);
-  return {hN,hT,hr,pN,pT,otPay:pN+pT,dS,dY,pS,pY,trip:pS+pY,total:(p.net||0)+pN+pT+pS+pY};
+  // fark: günlük ücretin (net ÷ 30) yüzdesi, şehir dışı/yurtdışı geçen her gün için
+  const hr=p.div?p.net/p.div:0,day=(p.net||0)/30,pN=hN*hr*p.kN,pT=hT*hr*p.kT,pS=dS*day*(p.sdP||0)/100,pY=dY*day*(p.ydP||0)/100;
+  return {hN,hT,hr,day,pN,pT,otPay:pN+pT,dS,dY,pS,pY,trip:pS+pY,total:(p.net||0)+pN+pT+pS+pY};
 }
 function paySheet(){
   const p=Object.assign({},S.pay);
   openSheet('<div class="sh-head"><div><h2>'+AYLAR[M]+' '+Y+' maaş hesabı</h2><p>Tahmini: net maaş + mesai + şehir dışı/yurtdışı farkı</p></div><button class="x" data-x="close" aria-label="Kapat">×</button></div>'+
     '<label class="f"><span>Aylık net maaşınız (₺)</span><input class="inp" id="pNet" inputmode="decimal" placeholder="Örn. 45.000" value="'+(p.net?String(p.net).replace(".",","):"")+'"></label>'+
-    '<div class="row2"><label class="f"><span>Şehir dışı farkı (₺/gün)</span><input class="inp" id="pSD" inputmode="decimal" placeholder="0" value="'+(p.sd?String(p.sd).replace(".",","):"")+'"></label>'+
-      '<label class="f"><span>Yurtdışı farkı (₺/gün)</span><input class="inp" id="pYD" inputmode="decimal" placeholder="0" value="'+(p.yd?String(p.yd).replace(".",","):"")+'"></label></div>'+
+    '<div class="row2"><label class="f"><span>Şehir dışı farkı (%)</span><input class="inp" id="pSD" inputmode="decimal" placeholder="Örn. 50" value="'+(p.sdP?String(p.sdP).replace(".",","):"")+'"></label>'+
+      '<label class="f"><span>Yurtdışı farkı (%)</span><input class="inp" id="pYD" inputmode="decimal" placeholder="Örn. 100" value="'+(p.ydP?String(p.ydP).replace(".",","):"")+'"></label></div>'+
+    '<p class="hint" style="margin-top:-4px">Günlük ücretin (net maaş ÷ 30) yüzdesi; şehir dışı/yurtdışı geçen her gün için eklenir.</p>'+
     '<div class="calc" id="pOut"></div>'+
     '<details class="adv"><summary>Hesap ayarları</summary><div class="row3" style="margin-top:8px">'+
       '<label class="f"><span>Saat böleni</span><input class="inp" id="pDiv" inputmode="decimal" value="'+p.div+'"></label>'+
@@ -517,20 +519,21 @@ function paySheet(){
     const upd=()=>{
       p.net=num(sh.querySelector("#pNet").value);p.div=numK(sh.querySelector("#pDiv").value)||225;
       p.kN=numK(sh.querySelector("#pKN").value);p.kT=numK(sh.querySelector("#pKT").value);
-      p.sd=num(sh.querySelector("#pSD").value);p.yd=num(sh.querySelector("#pYD").value);
+      p.sdP=numK(sh.querySelector("#pSD").value);p.ydP=numK(sh.querySelector("#pYD").value);
       const c=payCalc(Y,M,p),k=v=>String(v).replace(".",",");
       out.innerHTML='<div><span>Saatlik ücret</span><span>'+(p.net?new Intl.NumberFormat("tr-TR",{style:"currency",currency:"TRY",maximumFractionDigits:2}).format(c.hr):"—")+'</span></div>'+
         '<div><span>Normal gün mesaisi · '+fmtH(c.hN)+' sa × '+k(p.kN)+'</span><span>'+tl(c.pN)+'</span></div>'+
         '<div><span>Tatil/özel gün mesaisi · '+fmtH(c.hT)+' sa × '+k(p.kT)+'</span><span>'+tl(c.pT)+'</span></div>'+
         '<div><span>Mesai ücreti toplam</span><span>'+tl(c.otPay)+'</span></div>'+
-        '<div><span>Şehir dışı farkı · '+c.dS+' gün × '+tl(p.sd)+'</span><span>'+tl(c.pS)+'</span></div>'+
-        '<div><span>Yurtdışı farkı · '+c.dY+' gün × '+tl(p.yd)+'</span><span>'+tl(c.pY)+'</span></div>'+
+        '<div><span>Günlük ücret (net ÷ 30)</span><span>'+tl(c.day)+'</span></div>'+
+        '<div><span>Şehir dışı farkı · '+c.dS+' gün × %'+k(p.sdP||0)+'</span><span>'+tl(c.pS)+'</span></div>'+
+        '<div><span>Yurtdışı farkı · '+c.dY+' gün × %'+k(p.ydP||0)+'</span><span>'+tl(c.pY)+'</span></div>'+
         '<div class="sum"><span>Bu ay yatacak (tahmini)</span><span>'+tl(c.total)+'</span></div>';
     };
     upd();sh.querySelectorAll("input").forEach(i=>i.addEventListener("input",upd));
     sh.addEventListener("click",e=>{const x=e.target.closest("[data-x]");if(!x)return;
       if(x.dataset.x==="close")closeSheet();
-      if(x.dataset.x==="save"){upd();S.pay={net:p.net,div:p.div,kN:p.kN,kT:p.kT,sd:p.sd,yd:p.yd};save();render();closeSheet();toast("Maaş bilgisi kaydedildi")}
+      if(x.dataset.x==="save"){upd();S.pay={net:p.net,div:p.div,kN:p.kN,kT:p.kT,sdP:p.sdP,ydP:p.ydP};save();render();closeSheet();toast("Maaş bilgisi kaydedildi")}
     });
   });
 }
