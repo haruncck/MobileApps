@@ -78,6 +78,8 @@ main{padding:12px 12px calc(110px + var(--safe-b))}
 .day .ot.h{background:var(--hol-soft);color:var(--hol)}
 .tag{display:inline-block;font-size:11.5px;font-weight:650;padding:1px 6px;border-radius:6px;background:var(--hol-soft);color:var(--hol);margin-left:6px;vertical-align:1px}
 .tag.m{background:#eef0f3;color:#555b66}
+.tag.y{background:#dff3e8;color:#1f6b45}
+.seg.seg3{grid-template-columns:1fr 1fr 1fr}.seg3 button[aria-pressed="true"]{color:#1f6b45}
 .note-ic{color:var(--sub)}
 
 /* alt çubuk */
@@ -199,12 +201,13 @@ const DINI_TATIL={ // resmi takvimden; yeni yıllar için eklenmeli
   "2026-05-27":"Kurban Bayramı","2026-05-28":"Kurban Bayramı","2026-05-29":"Kurban Bayramı","2026-05-30":"Kurban Bayramı"
 };
 const KEY="mesai.v1";
+const YER={merkez:"Merkez",sehirdisi:"Şehir dışı",yurtdisi:"Yurtdışı"};
 
 /* ---------- veri ---------- */
 let canStore=true;
-let S={name:"",days:{},sites:[],lastBackup:0,lastSent:{},pay:{net:0,div:225,kN:1.5,kT:1.5}};
+let S={name:"",days:{},sites:[],lastBackup:0,lastSent:{},pay:{net:0,div:225,kN:1.5,kT:1.5,sd:0,yd:0},siteLoc:{}};
 function load(){
-  try{const r=localStorage.getItem(KEY);if(r){const o=JSON.parse(r);S=Object.assign(S,o);S.pay=Object.assign({net:0,div:225,kN:1.5,kT:1.5},o.pay||{})}}
+  try{const r=localStorage.getItem(KEY);if(r){const o=JSON.parse(r);S=Object.assign(S,o);S.pay=Object.assign({net:0,div:225,kN:1.5,kT:1.5,sd:0,yd:0},o.pay||{});S.siteLoc=o.siteLoc||{}}}
   catch(e){canStore=false}
   try{localStorage.setItem(KEY+".t","1");localStorage.removeItem(KEY+".t")}catch(e){canStore=false}
 }
@@ -257,7 +260,7 @@ function render(){
     const cls="day"+((wd===0||wd===6)?" we":"")+(hol?" hol":"")+(k===tk?" today":"");
     let info;
     if(e&&(e.in||e.out||e.site)){
-      info='<div class="t">'+esc(e.in||"--:--")+' – '+esc(e.out||"--:--")+(e.type==="tatil"?'<span class="tag">Tatil/özel</span>':'')+(e.ot!=null&&e.ot!==""?'<span class="tag m">elle</span>':'')+'</div>'+
+      info='<div class="t">'+esc(e.in||"--:--")+' – '+esc(e.out||"--:--")+(e.type==="tatil"?'<span class="tag">Tatil/özel</span>':'')+(e.loc&&e.loc!=="merkez"?'<span class="tag y">'+YER[e.loc]+'</span>':'')+(e.ot!=null&&e.ot!==""?'<span class="tag m">elle</span>':'')+'</div>'+
         '<div class="s">'+esc(e.site||"Şantiye yok")+(e.note?' · <span class="note-ic">'+esc(e.note)+'</span>':'')+'</div>';
     }else info='<div class="empty">'+(hol?esc(hol):"—")+'</div>';
     const otc=!e?"":(ot>0?(e.type==="tatil"?"ot h":"ot"):"ot z");
@@ -267,7 +270,7 @@ function render(){
   $("#sMonth").textContent=fmtH(tot);
   const pc=payCalc(Y,M),pb=$("#payBtn");
   if(!S.pay.net){pb.className="pay set";pb.innerHTML='<div><b>Maaşını gir, bu ay ne yatacağını gör</b><span>Net maaş + mesai ücreti</span></div><em>›</em>'}
-  else{pb.className="pay";pb.innerHTML='<div><span>'+AYLAR[M]+' tahmini yatacak</span><b>'+tl(pc.total)+'</b></div><em>'+tl(S.pay.net)+' maaş<br>+ '+tl(pc.otPay)+' mesai</em>'}
+  else{pb.className="pay";pb.innerHTML='<div><span>'+AYLAR[M]+' tahmini yatacak</span><b>'+tl(pc.total)+'</b></div><em>'+tl(S.pay.net)+' maaş<br>+ '+tl(pc.otPay)+' mesai'+(pc.trip?'<br>+ '+tl(pc.trip)+' fark':'')+'</em>'}
   let yt=0;for(const k in S.days)if(k.startsWith(Y+"-"))yt+=otOf(S.days[k]);
   $("#sYear").textContent=fmtH(yt);
   $("#sYearBar").style.width=Math.min(100,yt/YIL_SINIR*100)+"%";
@@ -312,8 +315,8 @@ function prevFilled(k){const ks=Object.keys(S.days).filter(x=>x<k&&S.days[x].in)
 function editDay(k){
   const [y,m,d]=k.split("-").map(Number),dt=new Date(y,m-1,d),hol=holiday(k);
   const ex=S.days[k];
-  const e=Object.assign({in:"08:00",out:"18:00",site:"",type:hol?"tatil":"normal",ot:null,note:""},ex||{});
-  if(!ex){const p=prevFilled(k);if(p)e.site=p.site||""}
+  const e=Object.assign({in:"08:00",out:"18:00",site:"",loc:"merkez",type:hol?"tatil":"normal",ot:null,note:""},ex||{});
+  if(!ex){const p=prevFilled(k);if(p){e.site=p.site||"";e.loc=p.loc||"merkez"}}
   const sites=S.sites.slice(0,6);
   openSheet(
     '<div class="sh-head"><div><h2>'+d+' '+AYLAR[m-1]+' '+GUN_U[dt.getDay()]+'</h2><p>'+(hol?esc(hol)+' · resmi tatil':(ex?'Kayıtlı gün':'Yeni kayıt'))+'</p></div><button class="x" data-x="close" aria-label="Kapat">×</button></div>'+
@@ -323,6 +326,7 @@ function editDay(k){
     (prevFilled(k)&&!ex?'<div class="quick"><button type="button" data-x="copy">Son günle aynı saatler</button></div>':'')+
     '<label class="f"><span>Şantiye / yer</span><input class="inp" id="fSite" list="siteList" value="'+esc(e.site)+'" placeholder="Örn. Ankara, Bandırma KM, Atölye" autocomplete="off">'+
       (sites.length?'<div class="chips">'+sites.map(s=>'<button type="button" class="chip" data-site="'+esc(s)+'">'+esc(s)+'</button>').join("")+'</div>':'')+'</label>'+
+    '<div class="seg seg3" role="group" aria-label="Yer"><button type="button" data-loc="merkez">Merkez</button><button type="button" data-loc="sehirdisi">Şehir dışı</button><button type="button" data-loc="yurtdisi">Yurtdışı</button></div>'+
     '<datalist id="siteList">'+S.sites.map(s=>'<option value="'+esc(s)+'">').join("")+'</datalist>'+
     '<div class="otbox" id="otBox"><div><div class="v" id="otV"></div><div class="why" id="otWhy"></div></div><button type="button" class="lnk" data-x="manual" id="manBtn">Elle düzelt</button></div>'+
     '<div class="manual hidden" id="manRow"><input class="inp" id="fOt" type="number" inputmode="decimal" step="0.5" min="0" max="24" placeholder="Saat"><button type="button" class="lnk" data-x="auto">Otomatiğe dön</button></div>'+
@@ -337,6 +341,7 @@ function editDay(k){
       const man=!sh.querySelector("#manRow").classList.contains("hidden");
       cur.ot=man&&fOt.value!==""?Number(String(fOt.value).replace(",", ".")):null;
       sh.querySelectorAll("[data-type]").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.type===cur.type)));
+      sh.querySelectorAll("[data-loc]").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.loc===cur.loc)));
       sh.querySelector("#tHint").textContent=cur.type==="tatil"?"Bütün gün mesai sayılır, 1 saat mola düşülür.":"18:00'den sonrası mesai sayılır.";
       sh.querySelector("#otBox").classList.toggle("h",cur.type==="tatil");
       sh.querySelector("#otV").innerHTML=fmtH(otOf(cur))+' <small>saat mesai</small>';
@@ -346,11 +351,12 @@ function editDay(k){
     [fIn,fOut,fOt].forEach(i=>i.addEventListener("input",upd));
     sh.addEventListener("click",ev=>{
       const t=ev.target.closest("[data-type]");if(t){cur.type=t.dataset.type;upd();return}
-      const c=ev.target.closest("[data-site]");if(c){fSite.value=c.dataset.site;return}
+      const lc=ev.target.closest("[data-loc]");if(lc){cur.loc=lc.dataset.loc;upd();return}
+      const c=ev.target.closest("[data-site]");if(c){fSite.value=c.dataset.site;if(S.siteLoc[c.dataset.site]){cur.loc=S.siteLoc[c.dataset.site];upd()}return}
       const x=ev.target.closest("[data-x]");if(!x)return;
       const a=x.dataset.x;
       if(a==="close")closeSheet();
-      if(a==="copy"){const p=prevFilled(k);if(p){fIn.value=p.in||"";fOut.value=p.out||"";fSite.value=p.site||"";upd()}}
+      if(a==="copy"){const p=prevFilled(k);if(p){fIn.value=p.in||"";fOut.value=p.out||"";fSite.value=p.site||"";cur.loc=p.loc||"merkez";upd()}}
       if(a==="manual"){sh.querySelector("#manRow").classList.remove("hidden");x.classList.add("hidden");fOt.value=fmtH(calc(cur)).replace(",", ".");fOt.focus();upd()}
       if(a==="auto"){sh.querySelector("#manRow").classList.add("hidden");sh.querySelector("#manBtn").classList.remove("hidden");fOt.value="";upd()}
       if(a==="del"){delete S.days[k];save();closeSheet();render();toast("Gün silindi")}
@@ -358,7 +364,8 @@ function editDay(k){
         upd();
         if(!cur.in||!cur.out){toast("Giriş ve çıkış saatini girin");return}
         const site=fSite.value.trim();
-        S.days[k]={in:cur.in,out:cur.out,site,type:cur.type,ot:cur.ot,note:fNote.value.trim()};
+        S.days[k]={in:cur.in,out:cur.out,site,loc:cur.loc,type:cur.type,ot:cur.ot,note:fNote.value.trim()};
+        if(site)S.siteLoc[site]=cur.loc;
         if(site){S.sites=[site].concat(S.sites.filter(s=>s.toLocaleLowerCase("tr")!==site.toLocaleLowerCase("tr"))).slice(0,20)}
         save();closeSheet();render();toast(d+" "+AYLAR[m-1]+" kaydedildi · "+fmtH(otOf(S.days[k]))+" saat mesai");
       }
@@ -374,7 +381,7 @@ function settings(){
     '<label class="f"><span>Adınız soyadınız (Excel\'de görünür)</span><input class="inp" id="sName" value="'+esc(S.name)+'"></label>'+
     '<div class="list">'+
       '<button data-x="backup"><span>Yedek al<small>Son yedek: '+lb+'. Dosyayı kendinize gönderin ya da saklayın.</small></span><span>›</span></button>'+
-      '<button data-x="pay"><span>Maaş ve mesai ücreti<small>Net maaş, saat böleni ve mesai katsayıları.</small></span><span>›</span></button>'+
+      '<button data-x="pay"><span>Maaş, mesai ve farklar<small>Net maaş, mesai katsayıları, şehir dışı/yurtdışı günlük farkı.</small></span><span>›</span></button>'+
       '<button data-x="restore"><span>Yedeği yükle<small>Yeni telefona geçerken ya da veriler silinince.</small></span><span>›</span></button>'+
     '</div>'+
     '<p class="muted">Hesap kuralı: normal günde 18:00 sonrası mesai; tatil/özel günde bütün gün eksi 1 saat mola. Sonuç yarım saate yuvarlanır, her gün elle düzeltilebilir.</p>'+
@@ -418,7 +425,7 @@ $("#fileIn").addEventListener("change",async ev=>{
       '<div class="btns"><button class="btn" data-x="close">Vazgeç</button><button class="btn p" data-x="ok">Yükle</button></div>',
     sh=>sh.addEventListener("click",e=>{const x=e.target.closest("[data-x]");if(!x)return;
       if(x.dataset.x==="close")closeSheet();
-      if(x.dataset.x==="ok"){S.days=Object.assign({},S.days,d.days);S.sites=[...new Set([...(S.sites||[]),...(d.sites||[])])].slice(0,20);if(!S.name)S.name=d.name||"";if(d.pay&&!S.pay.net)S.pay=Object.assign(S.pay,d.pay);save();closeSheet();start();toast(n+" gün yüklendi")}
+      if(x.dataset.x==="ok"){S.days=Object.assign({},S.days,d.days);S.sites=[...new Set([...(S.sites||[]),...(d.sites||[])])].slice(0,20);if(!S.name)S.name=d.name||"";if(d.pay&&!S.pay.net)S.pay=Object.assign(S.pay,d.pay);S.siteLoc=Object.assign({},d.siteLoc||{},S.siteLoc);save();closeSheet();start();toast(n+" gün yüklendi")}
     }));
   }catch(e){toast("Bu dosya bir mesai yedeği değil")}
 });
@@ -461,17 +468,17 @@ function buildXlsx(y,m){
       if(kind==="n")return '<c r="'+ref+'"'+st+'><v>'+val+'</v></c>';
       return '<c r="'+ref+'"'+st+' t="inlineStr"><is><t xml:space="preserve">'+xe(val)+'</t></is></c>'});
   };
-  const setTime=(ref,t)=>{if(!t)return;if(TPL_TIME_STYLES.has(styleOf(ref)))setCell(ref,"n",toMin(t)/1440);else setCell(ref,"s",t)};
+  const setTime=(ref,t)=>{if(t)setCell(ref,"s",t)}; // şablonda bu satırların biçimi hücreden hücreye değişiyor; hepsi aynı görünsün diye "08:00" metni
   setCell("A3","s",S.name);
   setCell("A4","n",Math.round((Date.UTC(y,m,1)-Date.UTC(1899,11,30))/86400000));
   for(let d=n+1;d<=31;d++)sh=sh.replace(new RegExp('(<c r="'+colL(1+d)+'2"[^>]*?)><v>\\d+</v></c>'),'$1/>');
   let tot=0;
   for(let d=1;d<=n;d++){
     const e=S.days[key(y,m,d)];if(!e)continue;const c=colL(1+d),ot=otOf(e);tot+=ot;
-    setTime(c+"3",e.out);setTime(c+"4",e.in);   // dosyadaki düzen: 3. satır çıkış, 4. satır giriş saati
-    if(e.site)setCell(c+"5","s",e.site);
+    setTime(c+"4",e.in);setTime(c+"5",e.out);   // 4. satır GİRİŞ, 5. satır ÇIKIŞ, 6. satır ŞANTİYE İSMİ (etiketlerle hizalı)
+    if(e.site)setCell(c+"6","s",e.site);
     if(ot>0)setCell(c+"7","n",ot);
-    const note=(e.type==="tatil"?"Tatil/özel gün":"")+(e.type==="tatil"&&e.note?". ":"")+(e.note||"");
+    const note=[e.type==="tatil"?"Tatil/özel gün":"",e.loc&&e.loc!=="merkez"?YER[e.loc]:"",e.note||""].filter(Boolean).join(". ");
     if(note)setCell(c+"8","s",note);
   }
   sh=sh.replace("<f>SUM(C7:AG7)</f></c>","<f>SUM(C7:AG7)</f><v>"+tot+"</v></c>");
@@ -486,13 +493,17 @@ const numK=v=>{const x=parseFloat(String(v==null?"":v).replace(",","."));return 
 function payCalc(y,m,p){
   p=p||S.pay;const n=daysIn(y,m);let hN=0,hT=0;
   for(let d=1;d<=n;d++){const e=S.days[key(y,m,d)];if(!e)continue;const o=otOf(e);if(e.type==="tatil")hT+=o;else hN+=o}
-  const hr=p.div?p.net/p.div:0,pN=hN*hr*p.kN,pT=hT*hr*p.kT;
-  return {hN,hT,hr,pN,pT,otPay:pN+pT,total:(p.net||0)+pN+pT};
+  let dS=0,dY=0;
+  for(let d=1;d<=n;d++){const e=S.days[key(y,m,d)];if(!e)continue;if(e.loc==="sehirdisi")dS++;if(e.loc==="yurtdisi")dY++}
+  const hr=p.div?p.net/p.div:0,pN=hN*hr*p.kN,pT=hT*hr*p.kT,pS=dS*(p.sd||0),pY=dY*(p.yd||0);
+  return {hN,hT,hr,pN,pT,otPay:pN+pT,dS,dY,pS,pY,trip:pS+pY,total:(p.net||0)+pN+pT+pS+pY};
 }
 function paySheet(){
   const p=Object.assign({},S.pay);
-  openSheet('<div class="sh-head"><div><h2>'+AYLAR[M]+' '+Y+' maaş hesabı</h2><p>Tahmini: net maaş + mesai ücreti</p></div><button class="x" data-x="close" aria-label="Kapat">×</button></div>'+
+  openSheet('<div class="sh-head"><div><h2>'+AYLAR[M]+' '+Y+' maaş hesabı</h2><p>Tahmini: net maaş + mesai + şehir dışı/yurtdışı farkı</p></div><button class="x" data-x="close" aria-label="Kapat">×</button></div>'+
     '<label class="f"><span>Aylık net maaşınız (₺)</span><input class="inp" id="pNet" inputmode="decimal" placeholder="Örn. 45.000" value="'+(p.net?String(p.net).replace(".",","):"")+'"></label>'+
+    '<div class="row2"><label class="f"><span>Şehir dışı farkı (₺/gün)</span><input class="inp" id="pSD" inputmode="decimal" placeholder="0" value="'+(p.sd?String(p.sd).replace(".",","):"")+'"></label>'+
+      '<label class="f"><span>Yurtdışı farkı (₺/gün)</span><input class="inp" id="pYD" inputmode="decimal" placeholder="0" value="'+(p.yd?String(p.yd).replace(".",","):"")+'"></label></div>'+
     '<div class="calc" id="pOut"></div>'+
     '<details class="adv"><summary>Hesap ayarları</summary><div class="row3" style="margin-top:8px">'+
       '<label class="f"><span>Saat böleni</span><input class="inp" id="pDiv" inputmode="decimal" value="'+p.div+'"></label>'+
@@ -506,17 +517,20 @@ function paySheet(){
     const upd=()=>{
       p.net=num(sh.querySelector("#pNet").value);p.div=numK(sh.querySelector("#pDiv").value)||225;
       p.kN=numK(sh.querySelector("#pKN").value);p.kT=numK(sh.querySelector("#pKT").value);
+      p.sd=num(sh.querySelector("#pSD").value);p.yd=num(sh.querySelector("#pYD").value);
       const c=payCalc(Y,M,p),k=v=>String(v).replace(".",",");
       out.innerHTML='<div><span>Saatlik ücret</span><span>'+(p.net?new Intl.NumberFormat("tr-TR",{style:"currency",currency:"TRY",maximumFractionDigits:2}).format(c.hr):"—")+'</span></div>'+
         '<div><span>Normal gün mesaisi · '+fmtH(c.hN)+' sa × '+k(p.kN)+'</span><span>'+tl(c.pN)+'</span></div>'+
         '<div><span>Tatil/özel gün mesaisi · '+fmtH(c.hT)+' sa × '+k(p.kT)+'</span><span>'+tl(c.pT)+'</span></div>'+
         '<div><span>Mesai ücreti toplam</span><span>'+tl(c.otPay)+'</span></div>'+
+        '<div><span>Şehir dışı farkı · '+c.dS+' gün × '+tl(p.sd)+'</span><span>'+tl(c.pS)+'</span></div>'+
+        '<div><span>Yurtdışı farkı · '+c.dY+' gün × '+tl(p.yd)+'</span><span>'+tl(c.pY)+'</span></div>'+
         '<div class="sum"><span>Bu ay yatacak (tahmini)</span><span>'+tl(c.total)+'</span></div>';
     };
     upd();sh.querySelectorAll("input").forEach(i=>i.addEventListener("input",upd));
     sh.addEventListener("click",e=>{const x=e.target.closest("[data-x]");if(!x)return;
       if(x.dataset.x==="close")closeSheet();
-      if(x.dataset.x==="save"){upd();S.pay={net:p.net,div:p.div,kN:p.kN,kT:p.kT};save();render();closeSheet();toast("Maaş bilgisi kaydedildi")}
+      if(x.dataset.x==="save"){upd();S.pay={net:p.net,div:p.div,kN:p.kN,kT:p.kT,sd:p.sd,yd:p.yd};save();render();closeSheet();toast("Maaş bilgisi kaydedildi")}
     });
   });
 }
