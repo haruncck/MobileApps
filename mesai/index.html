@@ -9,6 +9,7 @@
 <meta name="apple-mobile-web-app-title" content="Mesai">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="manifest" href="manifest.webmanifest">
+<script src="tpl.js"></script>
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
 <title>Mesai Puantajı</title>
@@ -40,6 +41,20 @@ button{cursor:pointer}
 .stat.warn b{color:#ffb4a8}
 .bar{height:4px;background:rgba(255,255,255,.15);border-radius:4px;margin-top:6px;overflow:hidden}
 .bar i{display:block;height:100%;background:var(--acc)}
+.pay{display:flex;justify-content:space-between;align-items:center;width:100%;margin-top:10px;border:0;border-radius:12px;padding:11px 12px;background:#2a2d34;color:#fff;text-align:left}
+.pay b{font-size:22px;font-weight:750;font-variant-numeric:tabular-nums;display:block}
+.pay span{font-size:12.5px;opacity:.7}
+.pay em{font-style:normal;font-size:13px;opacity:.85;text-align:right}
+.pay.set{background:none;border:1.5px dashed rgba(255,255,255,.3)}
+.pay.set b{font-size:16px}
+.calc{border:1px solid var(--line);border-radius:14px;overflow:hidden;margin-bottom:12px}
+.calc div{display:flex;justify-content:space-between;gap:10px;padding:11px 14px;border-top:1px solid var(--line);font-variant-numeric:tabular-nums}
+.calc div:first-child{border-top:0}
+.calc div span:first-child{color:var(--sub)}
+.calc div.sum{background:#faf7f2;font-weight:750;font-size:18px}
+.calc div.sum span:first-child{color:var(--ink)}
+.row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+details.adv{margin:0 0 12px}details.adv summary{color:var(--sub);font-size:14px;font-weight:600;padding:6px 2px;cursor:pointer}
 
 /* gün listesi */
 main{padding:12px 12px calc(110px + var(--safe-b))}
@@ -153,6 +168,7 @@ textarea.inp{min-height:76px;resize:vertical;font-size:16px}
       <div class="stat"><b id="sMonth">0</b><span>saat mesai bu ay</span></div>
       <div class="stat" id="sYearBox"><b id="sYear">0</b><span id="sYearL">/ 270 saat bu yıl</span><div class="bar"><i id="sYearBar" style="width:0"></i></div></div>
     </div>
+    <button class="pay" id="payBtn"></button>
   </header>
   <main>
     <div id="storeWarn" class="banner hidden">Bu tarayıcı kayıt saklamaya izin vermiyor; sayfa kapanınca girdiğiniz bilgiler silinir. Gizli sekmede olabilirsiniz.</div>
@@ -186,9 +202,9 @@ const KEY="mesai.v1";
 
 /* ---------- veri ---------- */
 let canStore=true;
-let S={name:"",days:{},sites:[],lastBackup:0,lastSent:{}};
+let S={name:"",days:{},sites:[],lastBackup:0,lastSent:{},pay:{net:0,div:225,kN:1.5,kT:1.5}};
 function load(){
-  try{const r=localStorage.getItem(KEY);if(r){const o=JSON.parse(r);S=Object.assign(S,o)}}
+  try{const r=localStorage.getItem(KEY);if(r){const o=JSON.parse(r);S=Object.assign(S,o);S.pay=Object.assign({net:0,div:225,kN:1.5,kT:1.5},o.pay||{})}}
   catch(e){canStore=false}
   try{localStorage.setItem(KEY+".t","1");localStorage.removeItem(KEY+".t")}catch(e){canStore=false}
 }
@@ -249,6 +265,9 @@ function render(){
   }
   $("#days").innerHTML=h;
   $("#sMonth").textContent=fmtH(tot);
+  const pc=payCalc(Y,M),pb=$("#payBtn");
+  if(!S.pay.net){pb.className="pay set";pb.innerHTML='<div><b>Maaşını gir, bu ay ne yatacağını gör</b><span>Net maaş + mesai ücreti</span></div><em>›</em>'}
+  else{pb.className="pay";pb.innerHTML='<div><span>'+AYLAR[M]+' tahmini yatacak</span><b>'+tl(pc.total)+'</b></div><em>'+tl(S.pay.net)+' maaş<br>+ '+tl(pc.otPay)+' mesai</em>'}
   let yt=0;for(const k in S.days)if(k.startsWith(Y+"-"))yt+=otOf(S.days[k]);
   $("#sYear").textContent=fmtH(yt);
   $("#sYearBar").style.width=Math.min(100,yt/YIL_SINIR*100)+"%";
@@ -355,6 +374,7 @@ function settings(){
     '<label class="f"><span>Adınız soyadınız (Excel\'de görünür)</span><input class="inp" id="sName" value="'+esc(S.name)+'"></label>'+
     '<div class="list">'+
       '<button data-x="backup"><span>Yedek al<small>Son yedek: '+lb+'. Dosyayı kendinize gönderin ya da saklayın.</small></span><span>›</span></button>'+
+      '<button data-x="pay"><span>Maaş ve mesai ücreti<small>Net maaş, saat böleni ve mesai katsayıları.</small></span><span>›</span></button>'+
       '<button data-x="restore"><span>Yedeği yükle<small>Yeni telefona geçerken ya da veriler silinince.</small></span><span>›</span></button>'+
     '</div>'+
     '<p class="muted">Hesap kuralı: normal günde 18:00 sonrası mesai; tatil/özel günde bütün gün eksi 1 saat mola. Sonuç yarım saate yuvarlanır, her gün elle düzeltilebilir.</p>'+
@@ -364,6 +384,7 @@ function settings(){
       if(a==="close")closeSheet();
       if(a==="backup")backup();
       if(a==="restore")$("#fileIn").click();
+      if(a==="pay")paySheet();
       if(a==="saveName"){const v=sh.querySelector("#sName").value.trim();if(v){S.name=v;save();render();closeSheet();toast("Kaydedildi")}}
     });
   });
@@ -397,7 +418,7 @@ $("#fileIn").addEventListener("change",async ev=>{
       '<div class="btns"><button class="btn" data-x="close">Vazgeç</button><button class="btn p" data-x="ok">Yükle</button></div>',
     sh=>sh.addEventListener("click",e=>{const x=e.target.closest("[data-x]");if(!x)return;
       if(x.dataset.x==="close")closeSheet();
-      if(x.dataset.x==="ok"){S.days=Object.assign({},S.days,d.days);S.sites=[...new Set([...(S.sites||[]),...(d.sites||[])])].slice(0,20);if(!S.name)S.name=d.name||"";save();closeSheet();start();toast(n+" gün yüklendi")}
+      if(x.dataset.x==="ok"){S.days=Object.assign({},S.days,d.days);S.sites=[...new Set([...(S.sites||[]),...(d.sites||[])])].slice(0,20);if(!S.name)S.name=d.name||"";if(d.pay&&!S.pay.net)S.pay=Object.assign(S.pay,d.pay);save();closeSheet();start();toast(n+" gün yüklendi")}
     }));
   }catch(e){toast("Bu dosya bir mesai yedeği değil")}
 });
@@ -410,7 +431,7 @@ function zip(files){ // [{name, data:string}] STORE
   const enc=new TextEncoder(),parts=[],cen=[];let off=0;
   const d=new Date(),dt=((d.getHours()<<11)|(d.getMinutes()<<5)|(d.getSeconds()>>1))&0xFFFF,dd=(((d.getFullYear()-1980)<<9)|((d.getMonth()+1)<<5)|d.getDate())&0xFFFF;
   for(const f of files){
-    const nm=enc.encode(f.name),data=enc.encode(f.data),crc=crc32(data);
+    const nm=enc.encode(f.name),data=typeof f.data==="string"?enc.encode(f.data):f.data,crc=crc32(data);
     const h=new DataView(new ArrayBuffer(30));
     h.setUint32(0,0x04034b50,true);h.setUint16(4,20,true);h.setUint16(6,0x0800,true);h.setUint16(8,0,true);
     h.setUint16(10,dt,true);h.setUint16(12,dd,true);h.setUint32(14,crc,true);h.setUint32(18,data.length,true);h.setUint32(22,data.length,true);
@@ -430,93 +451,74 @@ function zip(files){ // [{name, data:string}] STORE
 const colL=i=>{let s="";i++;while(i>0){const m=(i-1)%26;s=String.fromCharCode(65+m)+s;i=Math.floor((i-1)/26)}return s};
 const xe=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 function buildXlsx(y,m){
-  const n=daysIn(y,m),rows={};
-  const put=(r,c,v,st,kind)=>{(rows[r]=rows[r]||[]).push({c,v,st,kind})};
-  // stiller: 1 kalın başlık, 2 saat, 3 sayı, 4 metin ızgara, 5 gün başlığı, 6 hafta sonu başlığı, 7 etiket, 8 ay tarihi, 9 toplam, 10 tatil başlığı, 11 isim
-  put(1,0,"PUANTAJ — "+AYLAR[m].toLocaleUpperCase("tr")+" "+y,1,"s");
-  put(2,0,"PERSONEL",7,"s");put(2,1,"",7,"s");
-  put(3,0,"",7,"s");put(3,1,"GÜN",7,"s");
-  for(let d=1;d<=31;d++){
-    const c=1+d;
-    if(d>n){put(2,c,"",7,"s");put(3,c,"",7,"s");for(let r=4;r<=9;r++)put(r,c,"",4,"s");continue}
-    const k=key(y,m,d),wd=new Date(y,m,d).getDay(),hol=holiday(k),e=S.days[k];
-    const hs=hol?10:((wd===0||wd===6)?6:5);
-    put(2,c,d,hs,"n");put(3,c,GUN_K[wd],hs,"s");
-    if(e&&e.in)put(4,c,toMin(e.in)/1440,2,"n");else put(4,c,"",4,"s");
-    if(e&&e.out)put(5,c,toMin(e.out)/1440,2,"n");else put(5,c,"",4,"s");
-    put(6,c,e?e.site||"":"",4,"s");
-    put(7,c,e&&e.type==="tatil"?"Tatil":"",4,"s");
-    if(e)put(8,c,otOf(e),3,"n");else put(8,c,"",3,"s");
-    put(9,c,e?e.note||"":"",4,"s");
+  // Muhasebenin kendi puantaj dosyası şablon olarak kullanılır (tpl.js); yalnızca hücreler doldurulur.
+  const n=daysIn(y,m);let sh=TPL["xl/worksheets/sheet1.xml"];
+  const styleOf=ref=>{const mm=sh.match(new RegExp('<c r="'+ref+'" s="(\\d+)"'));return mm?+mm[1]:-1};
+  const setCell=(ref,kind,val)=>{
+    const re=new RegExp('<c r="'+ref+'"( s="\\d+")?/>');
+    if(!re.test(sh))return;
+    sh=sh.replace(re,(all,st)=>{st=st||"";
+      if(kind==="n")return '<c r="'+ref+'"'+st+'><v>'+val+'</v></c>';
+      return '<c r="'+ref+'"'+st+' t="inlineStr"><is><t xml:space="preserve">'+xe(val)+'</t></is></c>'});
+  };
+  const setTime=(ref,t)=>{if(!t)return;if(TPL_TIME_STYLES.has(styleOf(ref)))setCell(ref,"n",toMin(t)/1440);else setCell(ref,"s",t)};
+  setCell("A3","s",S.name);
+  setCell("A4","n",Math.round((Date.UTC(y,m,1)-Date.UTC(1899,11,30))/86400000));
+  for(let d=n+1;d<=31;d++)sh=sh.replace(new RegExp('(<c r="'+colL(1+d)+'2"[^>]*?)><v>\\d+</v></c>'),'$1/>');
+  let tot=0;
+  for(let d=1;d<=n;d++){
+    const e=S.days[key(y,m,d)];if(!e)continue;const c=colL(1+d),ot=otOf(e);tot+=ot;
+    setTime(c+"3",e.out);setTime(c+"4",e.in);   // dosyadaki düzen: 3. satır çıkış, 4. satır giriş saati
+    if(e.site)setCell(c+"5","s",e.site);
+    if(ot>0)setCell(c+"7","n",ot);
+    const note=(e.type==="tatil"?"Tatil/özel gün":"")+(e.type==="tatil"&&e.note?". ":"")+(e.note||"");
+    if(note)setCell(c+"8","s",note);
   }
-  put(2,33,"TOPLAM",5,"s");put(3,33,"",5,"s");
-  put(4,0,S.name,11,"s");put(4,1,"GİRİŞ",7,"s");
-  const ser=Math.round((Date.UTC(y,m,1)-Date.UTC(1899,11,30))/86400000);
-  put(5,0,ser,8,"n");put(5,1,"ÇIKIŞ",7,"s");
-  put(6,0,"",7,"s");put(6,1,"ŞANTİYE",7,"s");
-  put(7,0,"",7,"s");put(7,1,"GÜN TİPİ",7,"s");
-  put(8,0,"MESAİ (saat)",7,"s");put(8,1,"",7,"s");
-  let tot=0;for(let d=1;d<=n;d++)tot+=otOf(S.days[key(y,m,d)]);
-  put(8,33,{f:"SUM(C8:AG8)",v:tot},9,"f");
-  put(9,0,"",7,"s");put(9,1,"AÇIKLAMA",7,"s");
-  for(const r of [4,5,6,7,9])put(r,33,"",4,"s");
-  put(11,0,"Kural: normal günde 18:00 sonrası mesai; tatil/özel günde bütün gün − 1 saat mola. Yarım saate yuvarlanır.",0,"s");
-  put(12,0,"Oluşturma: "+new Date().toLocaleString("tr-TR"),0,"s");
-  let sd="";
-  for(const r of Object.keys(rows).map(Number).sort((a,b)=>a-b)){
-    const ht=r===9?' ht="48" customHeight="1"':(r===6?' ht="30" customHeight="1"':'');
-    sd+='<row r="'+r+'"'+ht+'>';
-    for(const x of rows[r].sort((a,b)=>a.c-b.c)){
-      const ref=colL(x.c)+r,st=x.st?' s="'+x.st+'"':'';
-      if(x.kind==="n")sd+='<c r="'+ref+'"'+st+'><v>'+x.v+'</v></c>';
-      else if(x.kind==="f")sd+='<c r="'+ref+'"'+st+'><f>'+x.v.f+'</f><v>'+x.v.v+'</v></c>';
-      else if(x.v==="")sd+='<c r="'+ref+'"'+st+'/>';
-      else sd+='<c r="'+ref+'"'+st+' t="inlineStr"><is><t xml:space="preserve">'+xe(x.v)+'</t></is></c>';
-    }
-    sd+='</row>';
-  }
-  const sheet='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'+
-   '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'+
-   '<sheetPr><pageSetUpPr fitToPage="1"/></sheetPr><sheetViews><sheetView workbookViewId="0"><pane xSplit="2" ySplit="3" topLeftCell="C4" activePane="bottomRight" state="frozen"/></sheetView></sheetViews>'+
-   '<cols><col min="1" max="1" width="24" customWidth="1"/><col min="2" max="2" width="11" customWidth="1"/><col min="3" max="33" width="8.5" customWidth="1"/><col min="34" max="34" width="10" customWidth="1"/></cols>'+
-   '<sheetData>'+sd+'</sheetData><mergeCells count="1"><mergeCell ref="A1:P1"/></mergeCells>'+
-   '<pageMargins left="0.3" right="0.3" top="0.4" bottom="0.4" header="0.2" footer="0.2"/><pageSetup paperSize="9" orientation="landscape" fitToWidth="1" fitToHeight="1"/></worksheet>';
-  const B='<border><left style="thin"><color rgb="FF9A9A9A"/></left><right style="thin"><color rgb="FF9A9A9A"/></right><top style="thin"><color rgb="FF9A9A9A"/></top><bottom style="thin"><color rgb="FF9A9A9A"/></bottom><diagonal/></border>';
-  const C='<alignment horizontal="center" vertical="center" wrapText="1"/>';
-  const styles='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'+
-   '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'+
-   '<numFmts count="3"><numFmt numFmtId="164" formatCode="hh:mm"/><numFmt numFmtId="165" formatCode="0.##"/><numFmt numFmtId="166" formatCode="[$-41F]mmmm yyyy"/></numFmts>'+
-   '<fonts count="3"><font><sz val="10"/><name val="Calibri"/></font><font><b/><sz val="10"/><name val="Calibri"/></font><font><b/><sz val="13"/><name val="Calibri"/></font></fonts>'+
-   '<fills count="6"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill>'+
-   '<fill><patternFill patternType="solid"><fgColor rgb="FFEDEDED"/><bgColor indexed="64"/></patternFill></fill>'+
-   '<fill><patternFill patternType="solid"><fgColor rgb="FFD9D9D9"/><bgColor indexed="64"/></patternFill></fill>'+
-   '<fill><patternFill patternType="solid"><fgColor rgb="FFE4DCF7"/><bgColor indexed="64"/></patternFill></fill>'+
-   '<fill><patternFill patternType="solid"><fgColor rgb="FFFDE3D3"/><bgColor indexed="64"/></patternFill></fill></fills>'+
-   '<borders count="2"><border><left/><right/><top/><bottom/><diagonal/></border>'+B+'</borders>'+
-   '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>'+
-   '<cellXfs count="12">'+
-    '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>'+                                   // 0
-    '<xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1"/>'+                      // 1 başlık
-    '<xf numFmtId="164" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyBorder="1" applyAlignment="1">'+C+'</xf>'+ // 2 saat
-    '<xf numFmtId="165" fontId="1" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyFont="1" applyBorder="1" applyAlignment="1">'+C+'</xf>'+ // 3 mesai
-    '<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1">'+C+'</xf>'+ // 4 metin
-    '<xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1">'+C+'</xf>'+ // 5 gün
-    '<xf numFmtId="0" fontId="1" fillId="3" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1">'+C+'</xf>'+ // 6 hafta sonu
-    '<xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment vertical="center" wrapText="1"/></xf>'+ // 7 etiket
-    '<xf numFmtId="166" fontId="1" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyFont="1" applyBorder="1" applyAlignment="1"><alignment vertical="center"/></xf>'+ // 8 ay
-    '<xf numFmtId="165" fontId="2" fillId="5" borderId="1" xfId="0" applyNumberFormat="1" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1">'+C+'</xf>'+ // 9 toplam
-    '<xf numFmtId="0" fontId="1" fillId="4" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1">'+C+'</xf>'+ // 10 tatil
-    '<xf numFmtId="0" fontId="1" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1" applyAlignment="1"><alignment vertical="center" wrapText="1"/></xf>'+ // 11 isim
-   '</cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>';
-  const sname=xe((AYLAR[m]+" "+y).slice(0,31));
-  return zip([
-    {name:"[Content_Types].xml",data:'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>'},
-    {name:"_rels/.rels",data:'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>'},
-    {name:"xl/workbook.xml",data:'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="'+sname+'" sheetId="1" r:id="rId1"/></sheets><calcPr calcId="0" fullCalcOnLoad="1"/></workbook>'},
-    {name:"xl/_rels/workbook.xml.rels",data:'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>'},
-    {name:"xl/worksheets/sheet1.xml",data:sheet},
-    {name:"xl/styles.xml",data:styles}
-  ]);
+  sh=sh.replace("<f>SUM(C7:AG7)</f></c>","<f>SUM(C7:AG7)</f><v>"+tot+"</v></c>");
+  const files=Object.keys(TPL).map(k=>({name:k,data:k==="xl/worksheets/sheet1.xml"?sh:TPL[k]}));
+  for(const k in TPL_BIN){const b=atob(TPL_BIN[k]),u=new Uint8Array(b.length);for(let i=0;i<b.length;i++)u[i]=b.charCodeAt(i);files.push({name:k,data:u})}
+  return zip(files);
+}
+/* ---------- maaş ---------- */
+const tl=v=>new Intl.NumberFormat("tr-TR",{style:"currency",currency:"TRY",maximumFractionDigits:0}).format(Math.round(v||0));
+const num=v=>{const x=parseFloat(String(v==null?"":v).replace(/\./g,"").replace(",","."));return isFinite(x)?x:0};
+const numK=v=>{const x=parseFloat(String(v==null?"":v).replace(",","."));return isFinite(x)?x:0};
+function payCalc(y,m,p){
+  p=p||S.pay;const n=daysIn(y,m);let hN=0,hT=0;
+  for(let d=1;d<=n;d++){const e=S.days[key(y,m,d)];if(!e)continue;const o=otOf(e);if(e.type==="tatil")hT+=o;else hN+=o}
+  const hr=p.div?p.net/p.div:0,pN=hN*hr*p.kN,pT=hT*hr*p.kT;
+  return {hN,hT,hr,pN,pT,otPay:pN+pT,total:(p.net||0)+pN+pT};
+}
+function paySheet(){
+  const p=Object.assign({},S.pay);
+  openSheet('<div class="sh-head"><div><h2>'+AYLAR[M]+' '+Y+' maaş hesabı</h2><p>Tahmini: net maaş + mesai ücreti</p></div><button class="x" data-x="close" aria-label="Kapat">×</button></div>'+
+    '<label class="f"><span>Aylık net maaşınız (₺)</span><input class="inp" id="pNet" inputmode="decimal" placeholder="Örn. 45.000" value="'+(p.net?String(p.net).replace(".",","):"")+'"></label>'+
+    '<div class="calc" id="pOut"></div>'+
+    '<details class="adv"><summary>Hesap ayarları</summary><div class="row3" style="margin-top:8px">'+
+      '<label class="f"><span>Saat böleni</span><input class="inp" id="pDiv" inputmode="decimal" value="'+p.div+'"></label>'+
+      '<label class="f"><span>Normal ×</span><input class="inp" id="pKN" inputmode="decimal" value="'+String(p.kN).replace(".",",")+'"></label>'+
+      '<label class="f"><span>Tatil/özel ×</span><input class="inp" id="pKT" inputmode="decimal" value="'+String(p.kT).replace(".",",")+'"></label>'+
+    '</div><p class="muted" style="margin:0">Saatlik ücret = net maaş ÷ bölen (yasal standart 225). Mesai ücreti = saat × saatlik ücret × katsayı.</p></details>'+
+    '<p class="muted">Bu bir tahmindir: mesai ücretinden kesilen vergi ve SGK düşülmemiştir, bordrodaki rakam farklı olabilir. Maaş bilginiz yalnızca bu telefonda kalır, Excel\'e yazılmaz.</p>'+
+    '<div class="btns"><button class="btn" data-x="close">Kapat</button><button class="btn p" data-x="save">Kaydet</button></div>',
+  sh=>{
+    const out=sh.querySelector("#pOut");
+    const upd=()=>{
+      p.net=num(sh.querySelector("#pNet").value);p.div=numK(sh.querySelector("#pDiv").value)||225;
+      p.kN=numK(sh.querySelector("#pKN").value);p.kT=numK(sh.querySelector("#pKT").value);
+      const c=payCalc(Y,M,p),k=v=>String(v).replace(".",",");
+      out.innerHTML='<div><span>Saatlik ücret</span><span>'+(p.net?new Intl.NumberFormat("tr-TR",{style:"currency",currency:"TRY",maximumFractionDigits:2}).format(c.hr):"—")+'</span></div>'+
+        '<div><span>Normal gün mesaisi · '+fmtH(c.hN)+' sa × '+k(p.kN)+'</span><span>'+tl(c.pN)+'</span></div>'+
+        '<div><span>Tatil/özel gün mesaisi · '+fmtH(c.hT)+' sa × '+k(p.kT)+'</span><span>'+tl(c.pT)+'</span></div>'+
+        '<div><span>Mesai ücreti toplam</span><span>'+tl(c.otPay)+'</span></div>'+
+        '<div class="sum"><span>Bu ay yatacak (tahmini)</span><span>'+tl(c.total)+'</span></div>';
+    };
+    upd();sh.querySelectorAll("input").forEach(i=>i.addEventListener("input",upd));
+    sh.addEventListener("click",e=>{const x=e.target.closest("[data-x]");if(!x)return;
+      if(x.dataset.x==="close")closeSheet();
+      if(x.dataset.x==="save"){upd();S.pay={net:p.net,div:p.div,kN:p.kN,kT:p.kT};save();render();closeSheet();toast("Maaş bilgisi kaydedildi")}
+    });
+  });
 }
 function sendSheet(){
   const n=daysIn(Y,M);let cnt=0,tot=0;
@@ -546,6 +548,7 @@ $("#nextM").addEventListener("click",()=>{M++;if(M>11){M=0;Y++}render()});
 $("#setBtn").addEventListener("click",settings);
 $("#whoBtn").addEventListener("click",settings);
 $("#sendBtn").addEventListener("click",sendSheet);
+$("#payBtn").addEventListener("click",paySheet);
 $("#backupWarn").addEventListener("click",e=>{if(e.target.closest("[data-act=backup]"))backup()});
 $("#wForm").addEventListener("submit",e=>{e.preventDefault();const v=$("#wName").value.trim();if(!v)return;S.name=v;save();start()});
 $("#wRestore").addEventListener("click",()=>$("#fileIn").click());
