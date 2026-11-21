@@ -42,7 +42,8 @@ body.kilit{overflow:hidden}
 #ust{position:sticky;top:0;z-index:5;background:var(--ust);color:var(--ust-yazi);padding-top:var(--tepe)}
 .ust-satir{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 16px 0;min-height:30px}
 #baslik-dukkan{font-size:13px;color:var(--ust-soluk);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#bugun{font-size:13px;font-weight:600;padding:0 12px;min-height:30px;border:1px solid var(--ust-cizgi);border-radius:15px;color:var(--ust-yazi);flex:none}
+#bugun{min-height:48px;margin:-9px 0;display:flex;align-items:center;flex:none;position:relative;z-index:1}
+#bugun span{font-size:13px;font-weight:600;padding:0 12px;line-height:28px;border:1px solid var(--ust-cizgi);border-radius:15px;color:var(--ust-yazi)}
 #bugun.gizli{visibility:hidden}
 .tarih-satir{display:flex;align-items:center;padding:0 4px}
 .ok{width:48px;height:48px;font-size:28px;line-height:1;text-align:center;color:var(--ust-yazi);flex:none;font-family:var(--serif)}
@@ -64,7 +65,7 @@ body.kilit{overflow:hidden}
 /* ---------- gövde ---------- */
 #govde{padding:0 12px calc(var(--sekme-y) + var(--alt) + 84px);max-width:560px;margin:0 auto}
 #ornek-serit{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:10px 0 0;padding:6px 6px 6px 12px;background:var(--uyari-zemin);color:var(--uyari-yazi);border-radius:10px;font-size:14px}
-#ornek-serit button{min-height:40px;padding:0 12px;border:1px solid currentColor;border-radius:8px;font-weight:600;flex:none}
+#ornek-serit button{min-height:48px;padding:0 12px;border:1px solid currentColor;border-radius:8px;font-weight:600;flex:none}
 .ozet{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 18px;padding:14px 4px 8px;color:var(--soluk);font-size:15px}
 .ozet b{font:600 19px var(--serif);color:var(--murekkep);font-variant-numeric:tabular-nums}
 #kapali-not{margin-left:auto;font-size:13px;font-weight:600;color:var(--kirmizi)}
@@ -89,7 +90,7 @@ body.kilit{overflow:hidden}
 .rozet-geldi{color:var(--mavi)}
 .rnd.gecmis .rnd-kart{opacity:.62}
 .rnd.gecmis .saat{color:var(--soluk)}
-.rnd.iptal{min-height:44px}
+.rnd.iptal{min-height:48px}
 .rnd.iptal .rnd-kart{background:none;box-shadow:none;border-left-color:var(--cizgi);padding-top:3px;padding-bottom:3px}
 .rnd.iptal .rnd-ad{text-decoration:line-through;font-weight:500;color:var(--soluk)}
 .rnd.iptal .rnd-islem{display:none}
@@ -125,7 +126,7 @@ body:not([data-sekme="gun"]) #fab{display:none}
 .ikili{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 #f-oneriler{display:flex;flex-wrap:wrap;gap:6px;margin-top:-6px}
 #f-oneriler:empty{display:none}
-.oneri{min-height:40px;padding:0 12px;border-radius:20px;background:var(--mavi-zemin);color:var(--murekkep);font-size:15px}
+.oneri{min-height:48px;padding:0 14px;border-radius:24px;background:var(--mavi-zemin);color:var(--murekkep);font-size:15px}
 .oneri small{color:var(--soluk);font-size:13px}
 .grup-ad{font-size:14px;color:var(--soluk);margin:0 0 4px}
 .islemler{display:grid;grid-template-columns:1fr 1fr;gap:8px}
@@ -152,7 +153,7 @@ body:not([data-sekme="gun"]) #fab{display:none}
 /* ---------- istatistik ---------- */
 .donemler,.secim{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:4px;padding:4px;background:var(--kart);border:1px solid var(--cizgi);border-radius:12px}
 .donemler{margin-top:12px}
-.donemler button,.secim button{min-height:44px;border-radius:9px;text-align:center;font-weight:600;color:var(--soluk)}
+.donemler button,.secim button{min-height:48px;border-radius:9px;text-align:center;font-weight:600;color:var(--soluk)}
 .donemler button[aria-pressed="true"],.secim button[aria-pressed="true"]{background:var(--murekkep);color:var(--kagit)}
 .donem-gez{display:flex;align-items:center;margin-top:6px}
 .ok2{width:48px;height:48px;font:400 28px/1 var(--serif);text-align:center;color:var(--murekkep);flex:none}
@@ -287,7 +288,7 @@ body:not([data-sekme="gun"]) #fab{display:none}
       hafta += `<button type="button" class="hg${t === d.tarih ? ' secili' : ''}${t === bg ? ' bugun' : ''}" data-tarih="${t}" aria-label="${k(gunBaslik(t))}, ${say} randevu"${t === d.tarih ? ' aria-current="date"' : ''}>` +
         `<span class="hg-ad">${BR.GUN_KISA[i]}</span><span class="hg-no">${Number(t.slice(8))}</span><span class="hg-say">${say || ''}</span></button>`;
     }
-    return `<div class="ust-satir">${dukkan}<button type="button" id="bugun" class="${d.tarih === bg ? 'gizli' : ''}">Bugün</button></div>
+    return `<div class="ust-satir">${dukkan}<button type="button" id="bugun" class="${d.tarih === bg ? 'gizli' : ''}"><span>Bugün</span></button></div>
       <div class="tarih-satir">
         <button type="button" class="ok" id="onceki" aria-label="Önceki gün">‹</button>
         <label class="tarih-kutu"><h1 id="baslik-tarih" style="margin:0">${k(gunBaslik(d.tarih))}</h1><input type="date" id="tarih-sec" value="${d.tarih}" aria-label="Tarih seç"></label>
@@ -439,11 +440,11 @@ body:not([data-sekme="gun"]) #fab{display:none}
   }
   function islemKaydet() {
     const s = d.sayfa, hata = yazi => { const h = $('#i-hata'); h.textContent = yazi; h.hidden = false; };
-    const ad = $('#i-ad').value.trim(), fiyatYazi = $('#i-fiyat').value.trim().replace(',', '.'), tr = x => x.toLocaleLowerCase('tr');
+    const ad = $('#i-ad').value.trim(), fiyat = BR.fiyatCoz($('#i-fiyat').value), tr = x => x.toLocaleLowerCase('tr');
     if (!ad) { hata('İşlem adını yazın.'); return $('#i-ad').focus(); }
     if (aktifIslemler().some(i => i.id !== s.id && tr(i.ad) === tr(ad))) return hata('Bu adla bir işlem zaten var.');
-    if (fiyatYazi && !(Number(fiyatYazi) >= 0)) return hata('Fiyat yalnızca rakam olmalı ya da boş kalmalı.');
-    const alanlar = { ad, sure: Number($('#i-sure').value), fiyat: fiyatYazi ? Number(fiyatYazi) : null, renk: s.renk };
+    if (Number.isNaN(fiyat)) return hata('Fiyat yalnızca rakam olmalı ya da boş kalmalı.');
+    const alanlar = { ad, sure: Number($('#i-sure').value), fiyat, renk: s.renk };
     if (s.id) Object.assign(islemBul(s.id), alanlar);
     else d.veri.islemler.push(Object.assign({ id: BR.yeniId(), sira: Math.max(-1, ...d.veri.islemler.map(i => i.sira)) + 1, silindi: false }, alanlar));
     kaydet(); sayfaKapat(); ciz(false);
@@ -455,13 +456,29 @@ body:not([data-sekme="gun"]) #fab{display:none}
     liste.forEach((i, sira) => { i.sira = sira; });
     kaydet(); ciz(false);
   }
+  const IPHONE = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   function yedekIndir() {
-    const ad = `berber-yedek-${bugun()}.json`;
-    const url = URL.createObjectURL(new Blob([JSON.stringify(d.veri)], { type: 'application/json' }));
-    const a = document.createElement('a');
-    a.href = url; a.download = ad; document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 15000);
-    bildir('Yedek indirildi: ' + ad, 4000);
+    const ad = `berber-yedek-${bugun()}.json`, icerik = JSON.stringify(d.veri);
+    const indir = () => {
+      const url = URL.createObjectURL(new Blob([icerik], { type: 'application/json' }));
+      const a = document.createElement('a');
+      a.href = url; a.download = ad; document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 15000);
+      bildir('Yedek dosyası hazırlandı: ' + ad + '. İndirilenler klasörüne bakın.', 5000);
+    };
+    // iPhone'da ana ekrana eklenmiş uygulamada dosya indirme güvenilir değil; paylaşım sayfası ("Dosyalara Kaydet") kullanılır.
+    if (IPHONE && navigator.canShare && navigator.share) {
+      try {
+        const dosya = new File([icerik], ad, { type: 'application/json' });
+        if (navigator.canShare({ files: [dosya] })) {
+          navigator.share({ files: [dosya] }).then(
+            () => bildir('Yedek paylaşıldı. “Dosyalara Kaydet” ile saklayın.', 5000),
+            e => { if (!e || e.name !== 'AbortError') indir(); });
+          return;
+        }
+      } catch (e) { /* paylaşım yok; indirmeye düş */ }
+    }
+    indir();
   }
   function yedekOku(dosya) {
     const hata = $('#yedek-hata');
@@ -485,7 +502,9 @@ body:not([data-sekme="gun"]) #fab{display:none}
   }
 
   /* ---------- çizim ---------- */
+  let cizilenBugun = null; // son tam çizimde "bugün" hangi gündü
   function ciz(kaydir) {
+    cizilenBugun = bugun();
     document.body.dataset.sekme = d.sekme;
     $('#ust').innerHTML = ustHtml();
     $('#govde').innerHTML = d.sekme === 'gun' ? gunHtml() : d.sekme === 'ist' ? istHtml() : ayarHtml();
@@ -557,7 +576,9 @@ body:not([data-sekme="gun"]) #fab{display:none}
   }
   function onerileriCiz() {
     const yazilan = $('#f-ad').value, tr = s => s.trim().toLocaleLowerCase('tr');
-    const liste = BR.musteriOner(d.veri.randevular, yazilan).filter(o => tr(o.ad) !== tr(yazilan));
+    const hepsi = BR.musteriOner(d.veri.randevular, yazilan), tam = hepsi.find(o => tr(o.ad) === tr(yazilan));
+    if (tam && tam.tel && !$('#f-tel').value.trim()) $('#f-tel').value = tam.tel; // isim tam yazıldıysa telefonu da getir
+    const liste = hepsi.filter(o => o !== tam);
     $('#f-oneriler').innerHTML = liste.map((o, i) => `<button type="button" class="oneri" data-oneri="${i}">${k(o.ad)}${o.tel ? ` <small>${k(o.tel)}</small>` : ''}</button>`).join('');
     d.sayfa.oneriler = liste;
   }
@@ -570,11 +591,12 @@ body:not([data-sekme="gun"]) #fab{display:none}
     const s = d.sayfa, f = s.f;
     f.ad = $('#f-ad').value.trim(); f.tel = $('#f-tel').value.trim(); f.not = $('#f-not').value.trim();
     f.tarih = $('#f-tarih').value; f.saat = $('#f-saat').value; f.sure = Number($('#f-sure').value);
-    const fiyatYazi = $('#f-fiyat').value.trim().replace(',', '.');
+    const fiyat = BR.fiyatCoz($('#f-fiyat').value);
     if (!f.ad) return formHata('İsim yazın.', '#f-ad');
     if (!/^\d{4}-\d{2}-\d{2}$/.test(f.tarih)) return formHata('Tarih seçin.', '#f-tarih');
-    if (fiyatYazi && !(Number(fiyatYazi) >= 0)) return formHata('Fiyat yalnızca rakam olmalı ya da boş kalmalı.', '#f-fiyat');
-    f.fiyat = fiyatYazi ? Number(fiyatYazi) : null;
+    if (Number.isNaN(fiyat)) return formHata('Fiyat yalnızca rakam olmalı ya da boş kalmalı.', '#f-fiyat');
+    f.fiyat = fiyat;
+    delete f.ornek; // elle kaydedilen randevu artık kullanıcınındır
     const cakisan = BR.cakisanlar(d.veri.randevular, f);
     if (cakisan.length && f.durum !== 'iptal' && !s.onayli) {
       const c = $('#f-cakisma');
@@ -631,9 +653,7 @@ body:not([data-sekme="gun"]) #fab{display:none}
       <div class="sayfa-alt"><button type="button" class="ikincil" id="onay-hayir">Vazgeç</button><button type="button" class="tehlike" id="${evetId}">${evetYazi}</button></div>`);
   }
   function temizBasla() {
-    const temiz = BR.varsayilanVeri();
-    temiz.ayar = Object.assign({}, d.veri.ayar, { ornek: false });
-    veriDegistir(temiz, 'Örnekler silindi. Defter artık sizin.');
+    veriDegistir(BR.ornekleriSil(d.veri), 'Örnekler silindi. Defter artık sizin.');
   }
 
   /* ---------- olaylar ---------- */
@@ -649,7 +669,11 @@ body:not([data-sekme="gun"]) #fab{display:none}
     if ((el = h('.dilim.bos'))) return formAc(null, el.dataset.saat);
     if (h('#fab')) return formAc(null);
     if ((el = h('.rnd'))) return ayrintiAc(el.dataset.id);
-    if (h('#temiz-basla') || h('#ornek-sil')) return onaySayfasi('Temiz başla', 'Örnek randevular ve örnek fiyatlar silinir. Dükkân adı ve çalışma saatleri kalır.', 'temiz-evet', 'Örnekleri sil');
+    if (h('#temiz-basla') || h('#ornek-sil')) {
+      const ornek = d.veri.randevular.filter(r => r.ornek === true).length, kendi = d.veri.randevular.length - ornek;
+      return onaySayfasi('Temiz başla', `${say(ornek)} örnek randevu ve örnek fiyatlar silinir. ` +
+        (kendi ? `Kendi eklediğiniz ${say(kendi)} randevu, ` : 'Kendi eklediğiniz ') + 'işlemler, dükkân adı ve çalışma saatleri kalır.', 'temiz-evet', 'Örnekleri sil');
+    }
     if (h('#temiz-evet')) return temizBasla();
     if ((el = h('[data-tur]'))) { d.ist.tur = el.dataset.tur; return ciz(false); }
     if (h('#ist-onceki')) { d.ist.tarih = BR.donemKaydir(d.ist.tur, d.ist.tarih, -1); return ciz(false); }
@@ -682,7 +706,7 @@ body:not([data-sekme="gun"]) #fab{display:none}
       }
       if ((el = h('.oneri'))) {
         const o = s.oneriler[Number(el.dataset.oneri)];
-        $('#f-ad').value = o.ad; if (o.tel) $('#f-tel').value = o.tel;
+        $('#f-ad').value = o.ad; $('#f-tel').value = o.tel; // boşsa da yaz: önceki müşterinin telefonu kalmasın
         return onerileriCiz();
       }
       if (h('#f-kaydet')) return formKaydet();
@@ -731,7 +755,19 @@ body:not([data-sekme="gun"]) #fab{display:none}
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && d.sayfa) sayfaKapat(); });
 
   // Şimdi çizgisi ve "geçmiş" görünümü güncel kalsın.
-  function tazele() { if (d.sekme === 'gun' && !d.sayfa && d.tarih === bugun()) ciz(false); }
+  // Gün dönünce (uygulama gece açık kaldıysa) "bugün"e bakan görünümler yeni güne taşınır.
+  let sonBugun = bugun();
+  function tazele() {
+    const bg = bugun();
+    if (bg !== sonBugun) {
+      if (d.tarih === sonBugun) d.tarih = bg;
+      if (d.ist.tarih === sonBugun) d.ist.tarih = bg;
+      sonBugun = bg;
+    }
+    if (d.sayfa) return;
+    if (cizilenBugun !== bg) return ciz(d.sekme === 'gun');
+    if (d.sekme === 'gun' && d.tarih === bg) $('#govde').innerHTML = gunHtml(); // başlığa dokunma: açık tarih seçici kapanmasın
+  }
   setInterval(tazele, 30000);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) tazele(); });
 

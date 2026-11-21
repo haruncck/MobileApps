@@ -24,6 +24,15 @@
   const YOGUNLUK = [[6, 9], [7, 11], [7, 11], [7, 11], [9, 13], [10, 14], [0, 0]];
   const AY_GERI = 14, GUN_ILERI = 6;
 
+  BR.ORNEK_FIYAT = Object.fromEntries(AGIRLIK.map(a => [a[0], a[2]]));
+
+  // "Temiz başla": yalnızca örnek randevuları ve değiştirilmemiş örnek fiyatları siler; kullanıcının eklediği her şey kalır.
+  BR.ornekleriSil = veri => ({
+    ayar: Object.assign({}, veri.ayar, { ornek: false }),
+    islemler: veri.islemler.map(i => Object.assign({}, i, BR.ORNEK_FIYAT[i.id] === i.fiyat ? { fiyat: null } : {})),
+    randevular: veri.randevular.filter(r => r.ornek !== true),
+  });
+
   BR.ornekVeri = bugun => {
     const veri = BR.varsayilanVeri();
     veri.ayar.ornek = true;
@@ -68,7 +77,7 @@
           let durum = 'bekliyor';
           if (tarih < bugun) { const z = r(); durum = z < 0.04 ? 'gelmedi' : z < 0.06 ? 'iptal' : 'bekliyor'; }
           gun.push({ id: 'o' + (no++), tarih, saat, sure: is.sure, ad: musteri.ad, tel: musteri.tel,
-            islemId: is.id, islemAd: is.ad, fiyat: is.fiyat, durum, not: '' });
+            islemId: is.id, islemAd: is.ad, fiyat: is.fiyat, durum, not: '', ornek: true });
           break;
         }
       }

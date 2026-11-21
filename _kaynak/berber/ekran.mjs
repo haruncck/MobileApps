@@ -139,12 +139,14 @@ const kayit = s => s.evaluate(() => JSON.parse(localStorage.getItem('berber-v1')
   denet(await s.locator('.rnd', { hasText: 'Zeki Usta' }).count() === 1, 'depo: yeniden açılınca randevu duruyor');
 
   // temiz başla
+  denet((await s.locator('#temiz-basla').boundingBox()).height >= 48, 'dokunma: Temiz başla düğmesi en az 48 px');
   await s.click('#temiz-basla');
+  denet((await s.locator('#sayfa .metin').innerText()).includes('Kendi eklediğiniz 1 randevu'), 'örnek: onay yazısı kendi randevularının kalacağını söyler');
   await s.click('#temiz-evet');
   await s.waitForSelector('.dilim.bos');
-  denet(await s.locator('.rnd').count() === 0 && await s.locator('#ornek-serit').count() === 0, 'örnek: temiz başla tüm örnekleri siler, şerit kalkar');
+  denet(await s.locator('.rnd').count() === 1 && await s.locator('.rnd', { hasText: 'Zeki Usta' }).count() === 1 && await s.locator('#ornek-serit').count() === 0, 'örnek: temiz başla örnekleri siler, kendi randevusu kalır, şerit kalkar');
   const temiz = await kayit(s);
-  denet(temiz.randevular.length === 0 && temiz.ayar.ornek === false && temiz.ayar.dukkan === 'By Lider Erkek Kuaförü', 'örnek: temizlenince dükkân adı korunur');
+  denet(temiz.randevular.length === 1 && temiz.ayar.ornek === false && temiz.ayar.dukkan === 'By Lider Erkek Kuaförü' && temiz.islemler.find(i => i.id === 'sac').fiyat === null, 'örnek: temizlenince dükkân adı korunur, örnek fiyatlar silinir');
   await tasmaYok(s, 'boş gün');
   await cek(s, '06-gun-bos');
   await baglam.close();
@@ -375,6 +377,88 @@ const tr = n => new Intl.NumberFormat('tr-TR').format(n);
   await s.click('[data-sekme="ist"]');
   denet(await s.locator('#ist-kisi').isVisible(), 'pwa: internet yokken istatistik çalışır');
   hatalar.length = 0;
+  await baglam.close();
+}
+
+/* ---------- son gözden geçirme bulguları ---------- */
+{
+  // gece yarısı: uygulama açık kalınca "bugün" yeni güne geçer
+  const { baglam, s } = await ac('light');
+  const tarihGirisi = await s.$('#tarih-sec');
+  await s.clock.fastForward('00:01:00');
+  denet(await tarihGirisi.evaluate(e => e.isConnected), 'tazeleme: başlıktaki tarih girişi 30 saniyede bir yeniden kurulmaz');
+  denet((await s.locator('.simdi span').innerText()) === '14:26', 'tazeleme: şimdi çizgisi ilerler');
+  await s.clock.fastForward('10:00:00');
+  denet((await s.locator('#baslik-tarih').innerText()).includes('22 Kasım') && await s.locator('#bugun.gizli').count() === 1 && await s.locator('.simdi').count() === 1, 'gece yarısı: açık kalan uygulama yeni güne geçer');
+  await s.click('[data-sekme="ist"]'); await s.click('[data-tur="gun"]');
+  denet((await s.locator('#ist-etiket').innerText()).includes('22 Kasım'), 'gece yarısı: istatistik de yeni günü gösterir');
+  await s.click('[data-sekme="gun"]');
+  await s.click('#onceki'); // kullanıcı başka güne bakıyorsa gün dönünce yerinde kalır
+  await s.clock.fastForward('24:00:00');
+  denet((await s.locator('#baslik-tarih').innerText()).includes('21 Kasım') && await s.locator('#bugun.gizli').count() === 0, 'gece yarısı: başka güne bakılıyorsa görünüm değişmez');
+  denet((await s.locator('#bugun').boundingBox()).height >= 48, 'dokunma: Bugün düğmesi en az 48 px');
+  await baglam.close();
+}
+{
+  // dokunma alanları ve müşteri önerisi / fiyat yazımı
+  const veri = BR.varsayilanVeri();
+  const r = (id, ad, tel, tarih, durum) => ({ id, tarih, saat: '10:00', sure: 30, ad, tel, islemId: 'sac', islemAd: 'Saç', fiyat: null, durum: durum || 'bekliyor', not: '' });
+  veri.randevular.push(r('a', 'Ali Telefonlu', '0532 000 00 01', '2026-11-10'), r('b', 'Ali Telefonsuz', '', '2026-11-11'),
+    r('c', 'Ali Telefonlu', '', '2026-11-12'), r('d', 'İptal Edilen', '', '2026-11-21', 'iptal'));
+  const { baglam, s } = await ac('light', JSON.stringify(veri));
+  denet((await s.locator('.rnd.iptal').boundingBox()).height >= 48, 'dokunma: iptal satırı en az 48 px');
+  await s.click('#fab');
+  await s.fill('#f-ad', 'ali');
+  denet((await s.locator('.oneri').first().boundingBox()).height >= 48, 'dokunma: öneri düğmeleri en az 48 px');
+  denet((await s.locator('.oneri', { hasText: 'Ali Telefonlu' }).innerText()).includes('0532 000 00 01'), 'öneri: son randevuda telefon boş olsa da eski telefon bulunur');
+  await s.locator('.oneri', { hasText: 'Ali Telefonlu' }).click();
+  denet(await s.locator('#f-tel').inputValue() === '0532 000 00 01', 'öneri: telefonlu müşteri seçilince telefon dolar');
+  await s.fill('#f-ad', 'ali');
+  await s.locator('.oneri', { hasText: 'Ali Telefonsuz' }).click();
+  denet(await s.locator('#f-tel').inputValue() === '', 'öneri: telefonsuz müşteriye geçince önceki telefon taşınmaz');
+  await s.fill('#f-ad', 'Ali Telefonlu');
+  denet(await s.locator('#f-tel').inputValue() === '0532 000 00 01', 'öneri: isim tam yazılınca telefon kendiliğinden dolar');
+  await s.fill('#f-fiyat', '1.500');
+  await s.click('#f-kaydet');
+  await s.waitForSelector('#sayfa:not(.acik)');
+  denet((await kayit(s)).randevular.find(x => x.ad === 'Ali Telefonlu' && x.tarih === '2026-11-21').fiyat === 1500, 'fiyat: "1.500" bin beş yüz olarak kaydedilir');
+  await s.click('[data-sekme="ayar"]');
+  denet((await s.locator('[data-adim="15"]').boundingBox()).height >= 48, 'dokunma: aralık seçimi en az 48 px');
+  await s.locator('.islem-satir').first().click();
+  await s.fill('#i-fiyat', '2.250'); await s.click('#i-kaydet');
+  await s.waitForSelector('#sayfa:not(.acik)');
+  denet((await kayit(s)).islemler[0].fiyat === 2250, 'fiyat: işlem fiyatında da binlik nokta anlaşılır');
+  await s.click('[data-sekme="ist"]');
+  denet((await s.locator('[data-tur="ay"]').boundingBox()).height >= 48, 'dokunma: dönem seçimi en az 48 px');
+  await baglam.close();
+}
+{
+  // örnek randevuyu düzenleyen kullanıcı onu sahiplenmiş olur; temiz başla silmez
+  const { baglam, s } = await ac('light');
+  await s.locator('.rnd').first().click(); await s.click('#a-duzenle');
+  await s.fill('#f-ad', 'Sahiplenilen'); await s.click('#f-kaydet');
+  await s.waitForSelector('#sayfa:not(.acik)');
+  await s.click('[data-sekme="ayar"]'); await s.click('#ornek-sil'); await s.click('#temiz-evet');
+  await s.waitForSelector('#sayfa:not(.acik)');
+  const k = await kayit(s);
+  denet(k.randevular.length === 1 && k.randevular[0].ad === 'Sahiplenilen', 'örnek: düzenlenen örnek randevu kullanıcının sayılır ve silinmez');
+  await baglam.close();
+}
+{
+  // iPhone: yedek paylaşım sayfasıyla verilir (ana ekran uygulamasında dosya indirme güvenilir değil)
+  const baglam = await tarayici.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, locale: 'tr-TR', timezoneId: 'Europe/Istanbul', serviceWorkers: 'block',
+    userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1' });
+  const s = await baglam.newPage();
+  s.on('pageerror', e => hatalar.push(String(e)));
+  await s.clock.install({ time: new Date('2026-11-21T14:25:00+03:00') });
+  await s.addInitScript(() => { navigator.canShare = () => true; navigator.share = async x => { window.__paylasilan = x.files[0].name + '|' + x.files[0].type + '|' + (await x.files[0].text()).length; }; });
+  await s.goto(adres); await s.waitForSelector('.rnd');
+  await s.click('[data-sekme="ayar"]');
+  let indi = false; s.on('download', () => { indi = true; });
+  await s.click('#yedek-indir');
+  await s.waitForFunction(() => window.__paylasilan);
+  const p = (await s.evaluate(() => window.__paylasilan)).split('|');
+  denet(p[0] === 'berber-yedek-2026-11-21.json' && p[1] === 'application/json' && Number(p[2]) > 100000 && !indi, 'yedek: iPhone\'da dosya paylaşım sayfasına verilir');
   await baglam.close();
 }
 

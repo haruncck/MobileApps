@@ -188,6 +188,7 @@
       ad: metin(r.ad).slice(0, 60), tel: metin(r.tel).slice(0, 20),
       islemId: metin(r.islemId), islemAd: metin(r.islemAd).slice(0, 40), fiyat: fiyatOku(r.fiyat),
       durum: DURUMLAR.includes(r.durum) ? r.durum : 'bekliyor', not: metin(r.not).slice(0, 200),
+      ...(r.ornek === true ? { ornek: true } : {}), // demo verisinden gelen randevu; "temiz başla" yalnızca bunları siler
     }));
     return { ayar, islemler, randevular };
   };
@@ -197,16 +198,24 @@
     const tr = s => metin(s).trim().toLocaleLowerCase('tr');
     const aranan = tr(yazilan);
     if (!aranan) return [];
-    const gorulen = new Set(), sonuc = [];
+    const kisiler = new Map();
     const sirali = randevular.filter(r => tr(r.ad).includes(aranan))
       .sort((x, y) => (y.tarih + y.saat).localeCompare(x.tarih + x.saat));
     for (const r of sirali) {
-      const k = tr(r.ad);
-      if (gorulen.has(k)) continue;
-      gorulen.add(k); sonuc.push({ ad: r.ad, tel: r.tel || '' });
-      if (sonuc.length === 5) break;
+      const k = tr(r.ad), kisi = kisiler.get(k);
+      if (!kisi) kisiler.set(k, { ad: r.ad, tel: r.tel || '' });
+      else if (!kisi.tel && r.tel) kisi.tel = r.tel; // son randevuda telefon yazılmadıysa bir öncekinden al
     }
-    return sonuc;
+    return [...kisiler.values()].slice(0, 5);
+  };
+
+  // Elle yazılan fiyatı sayıya çevirir: "1.500" → 1500, "99,90" → 99.9. Boşsa null, anlaşılmazsa NaN.
+  BR.fiyatCoz = yazi => {
+    let s = metin(yazi).replace(/[₺\s]/g, '');
+    if (!s) return null;
+    if (/^\d{1,3}(\.\d{3})+(,\d+)?$/.test(s)) s = s.replace(/\./g, '');
+    s = s.replace(',', '.');
+    return /^\d+(\.\d+)?$/.test(s) ? Number(s) : NaN;
   };
 
   /* ---------- metin ---------- */
