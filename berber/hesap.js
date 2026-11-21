@@ -142,6 +142,73 @@
     };
   };
 
+  /* ---------- veri kalıbı ve doğrulama ---------- */
+  let sayac = 0;
+  BR.yeniId = () => Date.now().toString(36) + (sayac++).toString(36) + Math.random().toString(36).slice(2, 6);
+
+  BR.RENKLER = ['#2F6FDE', '#D9822B', '#1F9D7A', '#8B5CF6', '#D6457A', '#2AA7C9', '#7A8B2E', '#B4532A'];
+  const ISLEMLER = [['sac', 'Saç', 30], ['sakal', 'Sakal', 15], ['sacsakal', 'Saç + Sakal', 45], ['cocuk', 'Çocuk Tıraşı', 30],
+    ['agda', 'Ağda', 15], ['fon', 'Yıkama + Fön', 15], ['cilt', 'Cilt Bakımı', 30]];
+  const VARSAYILAN_AYAR = () => ({ dukkan: '', acilis: '09:00', kapanis: '21:00', adim: 30, kapali: [0], ornek: false });
+
+  BR.varsayilanVeri = () => ({
+    ayar: VARSAYILAN_AYAR(),
+    islemler: ISLEMLER.map(([id, ad, sure], i) => ({ id, ad, sure, fiyat: null, renk: BR.RENKLER[i], sira: i, silindi: false })),
+    randevular: [],
+  });
+
+  const SAAT_RE = /^([01]\d|2[0-3]):[0-5]\d$/, TARIH_RE = /^\d{4}-\d{2}-\d{2}$/;
+  const DURUMLAR = ['bekliyor', 'geldi', 'gelmedi', 'iptal'];
+  const nesne = x => x !== null && typeof x === 'object' && !Array.isArray(x);
+  const metin = x => (typeof x === 'string' ? x : x == null ? '' : String(x));
+  const fiyatOku = x => (x === null || x === undefined || x === '' || !isFinite(Number(x)) || Number(x) < 0 ? null : Number(x));
+  const tarihGecerli = s => TARIH_RE.test(s) && BR.tarihYaz(BR.tarihOku(s)) === s;
+
+  // Depodan ya da yedek dosyasından gelen veriyi denetler; tanınmıyorsa null, tanınıyorsa onarılmış kopya döner.
+  BR.dogrula = x => {
+    if (!nesne(x) || !nesne(x.ayar) || !Array.isArray(x.islemler) || !Array.isArray(x.randevular)) return null;
+    const v = VARSAYILAN_AYAR(), a = x.ayar;
+    const ayar = {
+      dukkan: metin(a.dukkan).slice(0, 60),
+      acilis: v.acilis, kapanis: v.kapanis,
+      adim: a.adim === 15 || a.adim === 30 ? a.adim : v.adim,
+      kapali: Array.isArray(a.kapali) ? [...new Set(a.kapali.filter(n => Number.isInteger(n) && n >= 0 && n <= 6))] : v.kapali,
+      ornek: a.ornek === true,
+    };
+    if (SAAT_RE.test(a.acilis) && SAAT_RE.test(a.kapanis) && BR.dakika(a.kapanis) > BR.dakika(a.acilis)) { ayar.acilis = a.acilis; ayar.kapanis = a.kapanis; }
+    const islemler = x.islemler.filter(i => nesne(i) && metin(i.ad).trim()).map((i, n) => ({
+      id: metin(i.id) || BR.yeniId(), ad: metin(i.ad).trim().slice(0, 40),
+      sure: Number.isFinite(i.sure) && i.sure > 0 && i.sure <= 480 ? Math.round(i.sure) : 30,
+      fiyat: fiyatOku(i.fiyat), renk: /^#[0-9a-fA-F]{6}$/.test(i.renk) ? i.renk : BR.RENKLER[n % BR.RENKLER.length],
+      sira: Number.isFinite(i.sira) ? i.sira : n, silindi: i.silindi === true,
+    }));
+    const randevular = x.randevular.filter(r => nesne(r) && tarihGecerli(metin(r.tarih)) && SAAT_RE.test(metin(r.saat))).map(r => ({
+      id: metin(r.id) || BR.yeniId(), tarih: r.tarih, saat: r.saat,
+      sure: Number.isFinite(r.sure) && r.sure > 0 && r.sure <= 480 ? Math.round(r.sure) : 30,
+      ad: metin(r.ad).slice(0, 60), tel: metin(r.tel).slice(0, 20),
+      islemId: metin(r.islemId), islemAd: metin(r.islemAd).slice(0, 40), fiyat: fiyatOku(r.fiyat),
+      durum: DURUMLAR.includes(r.durum) ? r.durum : 'bekliyor', not: metin(r.not).slice(0, 200),
+    }));
+    return { ayar, islemler, randevular };
+  };
+
+  // Yazılan metne uyan eski müşteriler: en son gelen önce, ada göre tekil, en fazla 5.
+  BR.musteriOner = (randevular, yazilan) => {
+    const tr = s => metin(s).trim().toLocaleLowerCase('tr');
+    const aranan = tr(yazilan);
+    if (!aranan) return [];
+    const gorulen = new Set(), sonuc = [];
+    const sirali = randevular.filter(r => tr(r.ad).includes(aranan))
+      .sort((x, y) => (y.tarih + y.saat).localeCompare(x.tarih + x.saat));
+    for (const r of sirali) {
+      const k = tr(r.ad);
+      if (gorulen.has(k)) continue;
+      gorulen.add(k); sonuc.push({ ad: r.ad, tel: r.tel || '' });
+      if (sonuc.length === 5) break;
+    }
+    return sonuc;
+  };
+
   /* ---------- metin ---------- */
   const KACIS = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
   BR.kacis = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => KACIS[c]);
