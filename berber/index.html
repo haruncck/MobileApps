@@ -101,7 +101,16 @@ body.kilit{overflow:hidden}
 
 #fab{position:fixed;right:16px;bottom:calc(var(--sekme-y) + var(--alt) + 14px);z-index:6;min-height:54px;padding:0 20px 0 16px;border-radius:27px;background:var(--dugme);color:#fff;font-weight:700;font-size:16px;display:flex;align-items:center;gap:8px;box-shadow:0 6px 18px rgba(20,33,61,.32)}
 #fab i{font:400 26px/1 system-ui;font-style:normal;margin-top:-2px}
-body:not([data-sekme="gun"]) #fab{display:none}
+body:not([data-sekme="gun"]) #fab,body:not([data-sekme="gun"]) #mikrofon{display:none}
+#mikrofon{position:fixed;right:16px;bottom:calc(var(--sekme-y) + var(--alt) + 80px);z-index:6;width:54px;height:54px;border-radius:27px;background:var(--kart);border:1px solid var(--cizgi);color:var(--mavi);display:grid;place-items:center;box-shadow:0 4px 14px rgba(20,33,61,.22)}
+#mikrofon svg,.ses-nabiz svg{width:26px;height:26px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.ses-ic{align-items:center;text-align:center;padding-top:10px}
+.ses-nabiz{width:72px;height:72px;border-radius:36px;background:var(--dugme);color:#fff;display:grid;place-items:center;animation:nabiz 1.4s ease-out infinite}
+.ses-nabiz svg{width:32px;height:32px}
+@keyframes nabiz{0%{box-shadow:0 0 0 0 rgba(200,16,46,.45)}100%{box-shadow:0 0 0 22px rgba(200,16,46,0)}}
+.ses-yazi{margin:4px 0 0;min-height:56px;font:600 20px/1.3 var(--serif);overflow-wrap:anywhere}
+.ses-yazi:empty::before{content:"…";color:var(--soluk)}
+.duyulan{margin:0;padding:10px 12px;border-radius:10px;background:var(--mavi-zemin);font-size:15px;overflow-wrap:anywhere}
 
 /* ---------- alt sekmeler ---------- */
 #sekmeler{position:fixed;left:0;right:0;bottom:0;z-index:6;display:grid;grid-template-columns:repeat(3,1fr);background:var(--kart);border-top:1px solid var(--cizgi);padding-bottom:var(--alt)}
@@ -207,12 +216,13 @@ body:not([data-sekme="gun"]) #fab{display:none}
 
 #bildirim{position:fixed;left:16px;right:16px;bottom:calc(var(--sekme-y) + var(--alt) + 80px);z-index:10;margin:0 auto;max-width:420px;padding:12px 16px;border-radius:12px;background:var(--murekkep);color:var(--kagit);font-size:15px;text-align:center;opacity:0;visibility:hidden;transition:opacity .2s,visibility 0s .2s;pointer-events:none}
 #bildirim.acik{opacity:1;visibility:visible;transition:opacity .2s}
-@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
 </head>
 <body data-sekme="gun">
 <header id="ust"></header>
 <main id="govde"></main>
+<button id="mikrofon" type="button" aria-label="Sesle randevu ekle" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3M8.5 21h7"/></svg></button>
 <button id="fab" type="button"><i aria-hidden="true">+</i>Randevu</button>
 <nav id="sekmeler" aria-label="Bölümler">
   <button type="button" data-sekme="gun"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4M8 14h3M8 17h6"/></svg>Gün</button>
@@ -226,6 +236,7 @@ body:not([data-sekme="gun"]) #fab{display:none}
 
 <script src="hesap.js"></script>
 <script src="ornek.js"></script>
+<script src="ses.js"></script>
 <script>
 (function () {
   'use strict';
@@ -525,7 +536,9 @@ body:not([data-sekme="gun"]) #fab{display:none}
     $('#sayfa').classList.add('acik'); $('#perde').classList.add('acik'); document.body.classList.add('kilit');
   }
   function sayfaKapat() {
+    const s = d.sayfa;
     d.sayfa = null;
+    if (s && s.tur === 'ses' && !s.oturum.bitti) { s.oturum.bitti = true; try { s.oturum.tanima.abort(); } catch (e) { /* zaten durmuş */ } }
     $('#sayfa').classList.remove('acik'); $('#perde').classList.remove('acik'); document.body.classList.remove('kilit');
     if (document.activeElement && $('#sayfa').contains(document.activeElement)) document.activeElement.blur();
   }
@@ -542,14 +555,29 @@ body:not([data-sekme="gun"]) #fab{display:none}
     if (!liste.includes(secili)) { liste.push(secili); liste.sort((a, b) => a - b); }
     return liste.map(s => `<option value="${s}"${s === secili ? ' selected' : ''}>${s} dk</option>`).join('');
   }
-  function formAc(r, saat) {
+  // on: sesle eklemeden gelen ön bilgi { metin, ad, tarih, saat, islemId, ekIslemler }
+  function formAc(r, saat, on) {
     const ilk = aktifIslemler()[0];
     const f = r ? Object.assign({}, r) : { id: null, tarih: d.tarih, saat: saat || ilkBosSaat(d.tarih), sure: ilk ? ilk.sure : 30, ad: '', tel: '',
       islemId: ilk ? ilk.id : '', islemAd: ilk ? ilk.ad : '', fiyat: ilk ? ilk.fiyat : null, durum: 'bekliyor', not: '' };
+    let duyulan = '';
+    if (on) {
+      const tr = x => x.trim().toLocaleLowerCase('tr'), is = on.islemId && islemBul(on.islemId);
+      if (on.tarih) f.tarih = on.tarih;
+      f.saat = on.saat || ilkBosSaat(f.tarih);
+      if (is) Object.assign(f, { islemId: is.id, islemAd: is.ad, sure: is.sure, fiyat: is.fiyat });
+      f.ad = on.ad || '';
+      const bilinen = f.ad && BR.musteriOner(d.veri.randevular, f.ad).find(o => tr(o.ad) === tr(f.ad));
+      if (bilinen) { f.ad = bilinen.ad; f.tel = bilinen.tel; } // kayıttaki yazımı ve telefonu kullan
+      if (on.ekIslemler && on.ekIslemler.length) f.not = 'Ek: ' + on.ekIslemler.join(', ');
+      const eksik = [on.ad ? '' : 'İsim anlaşılmadı.', on.saat ? '' : 'Saat anlaşılmadı.'].filter(Boolean).join(' ');
+      duyulan = `<p class="duyulan" id="f-duyulan">Duyulan: “${k(on.metin)}”${eksik ? ' ' + eksik : ''} Kaydetmeden önce kontrol edin.</p>`;
+    }
     d.sayfa = { tur: 'form', f, onayli: false };
     const islemler = aktifIslemler().map(i => `<button type="button" class="islem-sec" data-islem="${k(i.id)}" style="--renk:${i.renk}" aria-pressed="${i.id === f.islemId}"><b>${k(i.ad)}</b><small>${i.sure} dk${i.fiyat != null ? ', ' + para(i.fiyat) : ''}</small></button>`).join('');
     sayfaAc(`${sayfaBas(r ? 'Randevuyu düzenle' : 'Yeni randevu')}
       <div class="sayfa-ic">
+        ${duyulan}
         <label class="alan">İsim<input id="f-ad" type="text" autocomplete="off" autocapitalize="words" enterkeyhint="done" maxlength="60" value="${k(f.ad)}"></label>
         <div id="f-oneriler"></div>
         <div><p class="grup-ad" id="f-islem-ad">İşlem</p><div class="islemler" role="group" aria-labelledby="f-islem-ad">${islemler}</div></div>
@@ -567,7 +595,7 @@ body:not([data-sekme="gun"]) #fab{display:none}
         <p class="uyari" id="f-cakisma" role="alert" hidden></p>
       </div>
       <div class="sayfa-alt"><button type="button" class="ana" id="f-kaydet">Kaydet</button></div>`);
-    if (!r) $('#f-ad').focus();
+    if (!r && !f.ad) $('#f-ad').focus();
   }
   function onayiSifirla() {
     if (!d.sayfa || d.sayfa.tur !== 'form') return;
@@ -611,6 +639,53 @@ body:not([data-sekme="gun"]) #fab{display:none}
     d.tarih = f.tarih;
     sayfaKapat(); ciz(false);
     if (oldu) bildir(`${f.ad}, ${f.saat} kaydedildi`);
+  }
+
+  /* ---------- sesle ekleme ---------- */
+  // Tarayıcının ses tanıması kullanılır (internet ister). Telefon desteklemiyorsa düğme hiç gösterilmez;
+  // destekleyip de çalıştıramıyorsa (ör. iPhone'da ana ekran uygulaması) klavye mikrofonuna yönlendirilir.
+  const SesTanima = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const MIKROFON_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3M8.5 21h7"/></svg>';
+  const SES_HATA = {
+    'network': 'İnternet bağlantısı yok ya da zayıf. Sesle ekleme internet ister.',
+    'no-speech': 'Ses duyulmadı. Düğmeye bastıktan sonra konuşun; bitince kendiliğinden durur.',
+    'aborted': 'Ses duyulmadı. Düğmeye bastıktan sonra konuşun; bitince kendiliğinden durur.',
+    'audio-capture': 'Mikrofona ulaşılamadı. Başka bir uygulama kullanıyor olabilir.',
+    'language-not-supported': 'Bu telefon Türkçe ses tanımayı desteklemiyor. Elle eklerken isim alanında klavyedeki mikrofon tuşunu kullanabilirsiniz.',
+  };
+  const SES_IZIN = 'Mikrofon izni verilmedi ya da bu telefonda sesle ekleme kullanılamıyor. Elle eklerken isim alanında klavyedeki mikrofon tuşunu kullanabilirsiniz.';
+  function sesHataGoster(kod) {
+    d.sayfa = { tur: 'ses-hata' };
+    sayfaAc(`${sayfaBas('Sesle ekleme')}<div class="sayfa-ic"><p class="metin" id="ses-hata">${SES_HATA[kod] || SES_IZIN}</p></div>
+      <div class="sayfa-alt"><button type="button" class="ikincil" id="ses-elle">Elle ekle</button><button type="button" class="ana" id="ses-yeniden">Yeniden dene</button></div>`);
+  }
+  function sesBasla() {
+    let tanima;
+    try { tanima = new SesTanima(); } catch (e) { return sesHataGoster('desteklenmiyor'); }
+    const oturum = { tanima, yazi: '', hata: null, bitti: false }, sayfa = { tur: 'ses', oturum };
+    tanima.lang = 'tr-TR'; tanima.interimResults = true; tanima.continuous = false; tanima.maxAlternatives = 1;
+    tanima.onresult = e => {
+      let yazi = '';
+      for (let i = 0; i < e.results.length; i++) yazi += e.results[i][0].transcript + ' ';
+      oturum.yazi = yazi.trim();
+      if (d.sayfa === sayfa && $('#ses-yazi')) $('#ses-yazi').textContent = oturum.yazi;
+    };
+    tanima.onerror = e => { oturum.hata = (e && e.error) || 'bilinmiyor'; };
+    tanima.onend = () => {
+      if (oturum.bitti) return;
+      oturum.bitti = true;
+      if (d.sayfa !== sayfa) return;
+      if (!oturum.yazi) return sesHataGoster(oturum.hata || 'no-speech');
+      const cozum = BR.sesCoz(oturum.yazi, { bugun: bugun(), ayar: d.veri.ayar, islemler: d.veri.islemler });
+      formAc(null, null, Object.assign(cozum, { metin: oturum.yazi }));
+    };
+    d.sayfa = sayfa;
+    sayfaAc(`${sayfaBas('Dinliyorum')}
+      <div class="sayfa-ic ses-ic"><div class="ses-nabiz" aria-hidden="true">${MIKROFON_SVG}</div>
+        <p class="ses-yazi" id="ses-yazi" aria-live="polite"></p>
+        <p class="aciklama">İsmi, günü, saati ve işlemi söyleyin. Örnek: “Ahmet Kaya, yarın saat üç, saç sakal”. Konuşmanız bitince kendiliğinden durur.</p></div>
+      <div class="sayfa-alt"><button type="button" class="ikincil" id="ses-vazgec">Vazgeç</button><button type="button" class="ana" id="ses-bitti">Bitti</button></div>`);
+    try { tanima.start(); } catch (e) { oturum.bitti = true; sesHataGoster('baslamadi'); }
   }
 
   /* ---------- randevu ayrıntısı ---------- */
@@ -667,7 +742,10 @@ body:not([data-sekme="gun"]) #fab{display:none}
     if (h('#bugun')) return gunSec(bugun());
     if ((el = h('.hg'))) return gunSec(el.dataset.tarih);
     if ((el = h('.dilim.bos'))) return formAc(null, el.dataset.saat);
-    if (h('#fab')) return formAc(null);
+    if (h('#fab') || h('#ses-elle')) return formAc(null);
+    if (h('#mikrofon') || h('#ses-yeniden')) return sesBasla();
+    if (h('#ses-vazgec')) return sayfaKapat();
+    if (h('#ses-bitti')) { if (d.sayfa && d.sayfa.tur === 'ses') { try { d.sayfa.oturum.tanima.stop(); } catch (e) { sayfaKapat(); } } return; }
     if ((el = h('.rnd'))) return ayrintiAc(el.dataset.id);
     if (h('#temiz-basla') || h('#ornek-sil')) {
       const ornek = d.veri.randevular.filter(r => r.ornek === true).length, kendi = d.veri.randevular.length - ornek;
@@ -771,6 +849,7 @@ body:not([data-sekme="gun"]) #fab{display:none}
   setInterval(tazele, 30000);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) tazele(); });
 
+  if (SesTanima && BR.sesCoz) $('#mikrofon').hidden = false;
   d.veri = yukle();
   window.uyg = { get veri() { return d.veri; }, set veri(v) { d.veri = v; }, kaydet, ciz, durum: d, bildir, sayfaAc, sayfaKapat, sayfaBas, onaySayfasi };
   ciz(true);

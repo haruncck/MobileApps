@@ -52,3 +52,26 @@ Tasarım: `2026-11-21-berber-randevu-design.md` · Plan: `2026-11-21-berber-rand
 
 - iPhone: ana ekrana ekleme, tarih seçici görünümü, Ayarlar → Yedeği indir.
 - Android: ana ekrana ekleme, yedek dosyasının İndirilenler'e düşmesi.
+
+## Sesle ekleme (21 Kasım 2026 eki)
+
+Gün ekranındaki mikrofon düğmesi tarayıcının ses tanımasını (`SpeechRecognition` / `webkitSpeechRecognition`, `tr-TR`) başlatır;
+söylenen cümleyi `berber/ses.js` içindeki `BR.sesCoz` isim, tarih, saat ve işleme ayırır ve randevu formunu doldurur.
+Kaydetmek için berberin **Kaydet**'e basması gerekir; sesle hiçbir şey onaysız kaydedilmez.
+
+Anlaşılan kalıplar:
+- Gün: bugün, yarın, öbür gün, gün adları (cuma, cumaya, cuma günü), haftaya, "25 kasım", "ayın 25'i". Söylenmezse ekranda açık olan gün kalır.
+- Saat: "saat 3", "3'te", "üçte", "on birde", "4 buçuk", "15:30", "15.30", "saat 16 30", sabah / öğlen / akşam.
+  Bölüm söylenmezse dükkân açılmadan önceki saatler öğleden sonra sayılır (09:00'da açılan dükkânda "üç" = 15:00, "sekiz" = 20:00).
+- İşlem: ayarlardaki işlem adları ("saç sakal" = "Saç + Sakal", "traş" = "tıraş"). İkinci bir işlem söylenirse nota "Ek: …" yazılır.
+- Kayıtlı bir müşterinin adı söylenirse kayıttaki yazımı ve telefonu gelir.
+
+Kararlar ve sınırlar:
+| Karar / sınır | Bedeli |
+|---|---|
+| Basılı tutmak yerine "bas, konuş, kendiliğinden durur" | iPhone basılı tutmayı kullanıcı hareketi saymayabiliyor; tek dokunuş iki platformda da çalışır |
+| Ses tanıma yoksa düğme hiç görünmez; var ama çalışmıyorsa klavye mikrofonu önerilir | iPhone'da ana ekran uygulamasında çalışıp çalışmadığı cihazda denenmeli |
+| İnternet ister (ses, tarayıcının bulut servisine gider) | İnternetsizken yalnızca elle ekleme |
+| "Çeyrek geçe / çeyrek kala" tanınmaz | Söylenirse isme karışır; formda düzeltilir |
+| Adı gün adı olan müşteri ("Cuma Yılmaz") gün sanılır | Formda düzeltilir |
+| Yalnızca taklit ses tanımayla sınandı (43 hesap testi, 139 ekran denetimi) | Gerçek mikrofonla Android ve iPhone'da denenmedi |
