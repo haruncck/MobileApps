@@ -32,7 +32,7 @@ let gecen = 0;
 const denet = (kosul, ad) => { if (kosul) gecen++; else { dusen.push(ad); console.log('DÜŞTÜ:', ad); } };
 
 const tarayici = await chromium.launch({ channel: 'chrome' });
-async function ac(tema, depo, sw) {
+async function ac(tema, depo, sw, ilk) {
   const baglam = await tarayici.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true,
     locale: 'tr-TR', timezoneId: 'Europe/Istanbul', colorScheme: tema, serviceWorkers: sw ? 'allow' : 'block', acceptDownloads: true });
   const s = await baglam.newPage();
@@ -41,6 +41,7 @@ async function ac(tema, depo, sw) {
   s.on('response', y => { if (y.status() >= 400) hatalar.push(y.status() + ' ' + y.url()); });
   await s.clock.install({ time: new Date('2026-11-21T14:25:00+03:00') });
   if (depo !== undefined) await s.addInitScript(d => { if (!sessionStorage.getItem('ekildi')) { localStorage.setItem('berber-v1', d); sessionStorage.setItem('ekildi', '1'); } }, depo);
+  if (ilk) await s.addInitScript(ilk);
   await s.goto(adres);
   await s.waitForSelector('.dilim, .rnd', { timeout: 8000 });
   return { baglam, s };
@@ -459,6 +460,118 @@ const tr = n => new Intl.NumberFormat('tr-TR').format(n);
   await s.waitForFunction(() => window.__paylasilan);
   const p = (await s.evaluate(() => window.__paylasilan)).split('|');
   denet(p[0] === 'berber-yedek-2026-11-21.json' && p[1] === 'application/json' && Number(p[2]) > 100000 && !indi, 'yedek: iPhone\'da dosya paylaşım sayfasına verilir');
+  await baglam.close();
+}
+
+/* ---------- sesle ekleme ---------- */
+// Taklit ses tanıma: test "konus" diyene kadar dinler. Gerçek telefon mikrofonu burada sınanamaz.
+const SAHTE_SES = `
+  class SahteTanima {
+    constructor() { window.__ses = this; window.__sesAdet = (window.__sesAdet || 0) + 1; }
+    start() {
+      this.basladi = true;
+      if (window.__sesHata) { const h = window.__sesHata; Promise.resolve().then(() => { this.onerror && this.onerror({ error: h }); this.onend && this.onend(); }); }
+    }
+    stop() { this.onend && this.onend(); }
+    abort() { this.iptal = true; this.onend && this.onend(); }
+    konus(yazi, ara) { this.onresult && this.onresult({ results: [[{ transcript: yazi }]] }); if (!ara) this.onend && this.onend(); }
+  }
+  delete window.SpeechRecognition; window.webkitSpeechRecognition = SahteTanima;`;
+const konus = (s, yazi, ara) => s.evaluate(([y, a]) => window.__ses.konus(y, a), [yazi, !!ara]);
+{
+  const { baglam, s } = await ac('light', undefined, false, SAHTE_SES);
+  denet(await s.locator('#mikrofon').isVisible() && (await s.locator('#mikrofon').boundingBox()).height >= 48, 'ses: mikrofon düğmesi görünür ve en az 48 px');
+  await s.click('#mikrofon');
+  await s.waitForSelector('#sayfa.acik #ses-yazi');
+  denet(await s.evaluate(() => window.__ses.basladi === true && window.__ses.lang === 'tr-TR'), 'ses: dinleme Türkçe olarak başlar');
+  await konus(s, 'ahmet kaya yarın', true);
+  denet((await s.locator('#ses-yazi').innerText()).includes('ahmet kaya yarın'), 'ses: söylenen anında ekranda görünür');
+  await cek(s, '21-ses-dinliyor');
+  await konus(s, 'Ahmet Kaya yarın saat 3 saç sakal');
+  await s.waitForSelector('#sayfa.acik #f-ad');
+  denet(await s.locator('#f-ad').inputValue() === 'Ahmet Kaya' && await s.locator('#f-tarih').inputValue() === '2026-11-22' && await s.locator('#f-saat').inputValue() === '15:00', 'ses: isim, tarih ve saat forma dolar');
+  denet((await s.locator('.islem-sec[aria-pressed="true"]').innerText()).includes('Saç + Sakal') && await s.locator('#f-sure').inputValue() === '45' && await s.locator('#f-fiyat').inputValue() === '450', 'ses: işlem seçilir, süre ve fiyat gelir');
+  denet((await s.locator('#f-duyulan').innerText()).includes('Ahmet Kaya yarın saat 3 saç sakal'), 'ses: duyulan cümle formda gösterilir');
+  await cek(s, '22-ses-form');
+  denet(!(await kayit(s)), 'ses: onaylanmadan hiçbir şey kaydedilmez');
+  await s.click('#f-kaydet');
+  await s.waitForSelector('#sayfa:not(.acik)');
+  const k = (await kayit(s)).randevular.find(r => r.ad === 'Ahmet Kaya' && r.tarih === '2026-11-22');
+  denet(k && k.saat === '15:00' && k.islemAd === 'Saç + Sakal' && !k.ornek, 'ses: Kaydet ile randevu yazılır');
+  denet((await s.locator('#baslik-tarih').innerText()).includes('22 Kasım'), 'ses: kayıttan sonra o güne geçilir');
+
+  // saat anlaşılmazsa söyler; ek işlem nota yazılır
+  await s.click('#mikrofon'); await s.waitForSelector('#sayfa.acik #ses-yazi');
+  await konus(s, 'Hasan saç ve ağda');
+  await s.waitForSelector('#sayfa.acik #f-ad');
+  denet(await s.locator('#f-ad').inputValue() === 'Hasan' && (await s.locator('#f-duyulan').innerText()).includes('Saat anlaşılmadı'), 'ses: saat anlaşılmazsa formda uyarır');
+  denet(await s.locator('#f-not').inputValue() === 'Ek: Ağda' && await s.locator('#f-tarih').inputValue() === '2026-11-22', 'ses: ikinci işlem nota yazılır, tarih söylenmezse bakılan gün kalır');
+  await s.click('#sayfa-kapat');
+
+  // güvenlik: duyulan metin düz yazı olarak gösterilir
+  await s.click('#mikrofon'); await s.waitForSelector('#sayfa.acik #ses-yazi');
+  await konus(s, '<img src=x onerror=window.__patladi=1> yarın 3', true);
+  await konus(s, '<img src=x onerror=window.__patladi=1> yarın 3');
+  await s.waitForSelector('#sayfa.acik #f-ad');
+  denet(await s.locator('#sayfa img').count() === 0 && !(await s.evaluate(() => window.__patladi)), 'ses: duyulan metin HTML olarak işlenmez');
+  await s.click('#sayfa-kapat');
+
+  // vazgeç: dinleme durur, geç gelen sonuç form açmaz
+  await s.click('#mikrofon'); await s.waitForSelector('#sayfa.acik #ses-yazi');
+  await s.click('#ses-vazgec');
+  await s.waitForSelector('#sayfa:not(.acik)');
+  denet(await s.evaluate(() => window.__ses.iptal === true), 'ses: vazgeçince dinleme durdurulur');
+  await s.evaluate(() => { window.__ses.onresult && window.__ses.onresult({ results: [[{ transcript: 'Geç Kalan yarın 3' }]] }); window.__ses.onend && window.__ses.onend(); });
+  denet(await s.locator('#sayfa.acik').count() === 0, 'ses: vazgeçtikten sonra gelen sonuç form açmaz');
+
+  // ses duyulmazsa: yeniden dene
+  await s.click('#mikrofon'); await s.waitForSelector('#sayfa.acik #ses-yazi');
+  const once = await s.evaluate(() => window.__sesAdet);
+  await s.click('#ses-bitti');
+  await s.waitForSelector('#ses-hata');
+  denet((await s.locator('#ses-hata').innerText()).includes('duyulmadı'), 'ses: bir şey söylenmezse "duyulmadı" der');
+  await s.click('#ses-yeniden');
+  await s.waitForSelector('#sayfa.acik #ses-yazi');
+  denet(await s.evaluate(() => window.__sesAdet) === once + 1, 'ses: Yeniden dene yeni bir dinleme başlatır');
+  await s.click('#ses-vazgec');
+
+  // izin yok / bu telefonda çalışmıyor: klavye mikrofonuna yönlendirir, elle eklemeye geçilir
+  await s.evaluate(() => { window.__sesHata = 'service-not-allowed'; });
+  await s.click('#mikrofon');
+  await s.waitForSelector('#ses-hata');
+  denet((await s.locator('#ses-hata').innerText()).includes('klavye'), 'ses: çalışmayan telefonda klavye mikrofonu önerilir');
+  await cek(s, '23-ses-calismadi');
+  await s.click('#ses-elle');
+  await s.waitForSelector('#sayfa.acik #f-ad');
+  denet(await s.locator('#f-ad').inputValue() === '' && await s.locator('#f-duyulan').count() === 0, 'ses: "Elle ekle" boş formu açar');
+  await s.click('#sayfa-kapat');
+  await s.evaluate(() => { window.__sesHata = 'network'; });
+  await s.click('#mikrofon');
+  await s.waitForSelector('#ses-hata');
+  denet((await s.locator('#ses-hata').innerText()).includes('İnternet'), 'ses: internet yoksa bunu söyler');
+  await s.click('#sayfa-kapat');
+  await s.click('[data-sekme="ist"]');
+  denet(!(await s.locator('#mikrofon').isVisible()), 'ses: mikrofon yalnızca gün ekranında');
+  await baglam.close();
+}
+{
+  // bilinen müşteri: isim kayıttaki yazımıyla ve telefonuyla gelir
+  const veri = BR.varsayilanVeri();
+  veri.randevular.push({ id: 'a', tarih: '2026-11-10', saat: '10:00', sure: 30, ad: 'Ali Telefonlu', tel: '0532 000 00 01', islemId: 'sac', islemAd: 'Saç', fiyat: null, durum: 'bekliyor', not: '' });
+  const { baglam, s } = await ac('dark', JSON.stringify(veri), false, SAHTE_SES);
+  await s.click('#mikrofon'); await s.waitForSelector('#sayfa.acik #ses-yazi');
+  await cek(s, '24-ses-dinliyor-koyu');
+  await konus(s, 'ali telefonlu bugün 5 buçuk sakal');
+  await s.waitForSelector('#sayfa.acik #f-ad');
+  denet(await s.locator('#f-ad').inputValue() === 'Ali Telefonlu' && await s.locator('#f-tel').inputValue() === '0532 000 00 01' && await s.locator('#f-saat').inputValue() === '17:30', 'ses: bilinen müşterinin telefonu da gelir');
+  await tasmaYok(s, 'ses formu');
+  await baglam.close();
+}
+{
+  // ses tanıma olmayan tarayıcı: düğme hiç görünmez
+  const { baglam, s } = await ac('light', undefined, false, 'delete window.SpeechRecognition; delete window.webkitSpeechRecognition;');
+  denet(await s.locator('#mikrofon').count() === 0 || !(await s.locator('#mikrofon').isVisible()), 'ses: desteklemeyen tarayıcıda mikrofon düğmesi yok');
+  denet(await s.locator('#fab').isVisible(), 'ses: desteklemeyen tarayıcıda elle ekleme düğmesi durur');
   await baglam.close();
 }
 
