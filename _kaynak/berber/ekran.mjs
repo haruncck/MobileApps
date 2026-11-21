@@ -32,9 +32,9 @@ let gecen = 0;
 const denet = (kosul, ad) => { if (kosul) gecen++; else { dusen.push(ad); console.log('DÜŞTÜ:', ad); } };
 
 const tarayici = await chromium.launch({ channel: 'chrome' });
-async function ac(tema, depo) {
+async function ac(tema, depo, sw) {
   const baglam = await tarayici.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true,
-    locale: 'tr-TR', timezoneId: 'Europe/Istanbul', colorScheme: tema, serviceWorkers: 'block', acceptDownloads: true });
+    locale: 'tr-TR', timezoneId: 'Europe/Istanbul', colorScheme: tema, serviceWorkers: sw ? 'allow' : 'block', acceptDownloads: true });
   const s = await baglam.newPage();
   s.on('console', m => { if (m.type() === 'error') hatalar.push(m.text()); });
   s.on('pageerror', e => hatalar.push(String(e)));
@@ -353,6 +353,28 @@ const tr = n => new Intl.NumberFormat('tr-TR').format(n);
   await s.click('[data-sekme="ayar"]');
   await s.waitForSelector('#a-dukkan');
   await cek(s, '20-ayar-koyu');
+  await baglam.close();
+}
+
+/* ---------- Task 6: ana ekrana ekleme ve çevrimdışı ---------- */
+{
+  const { baglam, s } = await ac('light', undefined, true);
+  const m = await s.evaluate(async () => { const b = document.querySelector('link[rel="manifest"]'); return b ? (await fetch(b.href)).json() : null; });
+  denet(m && m.name === 'Berber Randevu' && m.short_name === 'Randevu' && m.display === 'standalone' && m.start_url === './' && m.scope === './' && m.lang === 'tr', 'pwa: manifest alanları');
+  denet(m && m.icons.length === 2 && m.icons.some(i => i.sizes === '192x192') && m.icons.some(i => i.sizes === '512x512' && /maskable/.test(i.purpose)), 'pwa: 192 ve 512 ikon, maskable');
+  denet(await s.locator('link[rel="apple-touch-icon"]').count() === 1 && await s.locator('meta[name="apple-mobile-web-app-capable"]').count() === 1, 'pwa: iPhone ana ekran etiketleri');
+  const hazir = await s.evaluate(() => Promise.race([navigator.serviceWorker.ready.then(() => true), new Promise(r => setTimeout(() => r(false), 6000))]));
+  denet(hazir, 'pwa: service worker etkinleşir');
+  await s.reload(); await s.waitForSelector('.rnd'); // dosyalar önbelleğe girsin
+  await s.waitForTimeout(500);
+  await baglam.setOffline(true);
+  hatalar.length = 0; // çevrimdışıyken ağ hatası günlüğü beklenir
+  await s.reload();
+  const acildi = await s.waitForSelector('.rnd', { timeout: 6000 }).then(() => true, () => false);
+  denet(acildi && (await s.locator('#baslik-tarih').innerText()).includes('21 Kasım'), 'pwa: internet yokken uygulama açılır');
+  await s.click('[data-sekme="ist"]');
+  denet(await s.locator('#ist-kisi').isVisible(), 'pwa: internet yokken istatistik çalışır');
+  hatalar.length = 0;
   await baglam.close();
 }
 
