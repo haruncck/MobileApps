@@ -34,7 +34,7 @@ const denet = (kosul, ad) => { if (kosul) gecen++; else { dusen.push(ad); consol
 const tarayici = await chromium.launch({ channel: 'chrome' });
 async function ac(tema, depo) {
   const baglam = await tarayici.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true,
-    locale: 'tr-TR', timezoneId: 'Europe/Istanbul', colorScheme: tema, serviceWorkers: 'block' });
+    locale: 'tr-TR', timezoneId: 'Europe/Istanbul', colorScheme: tema, serviceWorkers: 'block', acceptDownloads: true });
   const s = await baglam.newPage();
   s.on('console', m => { if (m.type() === 'error') hatalar.push(m.text()); });
   s.on('pageerror', e => hatalar.push(String(e)));
@@ -181,6 +181,178 @@ const kayit = s => s.evaluate(() => JSON.parse(localStorage.getItem('berber-v1')
   await s.locator('.rnd').first().click();
   await s.waitForSelector('#sayfa.acik');
   await cek(s, '09-ayrinti-koyu');
+  await baglam.close();
+}
+
+/* ---------- Task 5: istatistik ---------- */
+const BR = require('../../berber/hesap.js'); require('../../berber/ornek.js');
+const ORNEK = BR.ornekVeri('2026-11-21'), SIMDI = new Date(2026, 10, 21, 14, 25);
+const bekle = (tur, tarih) => BR.istatistik(ORNEK.randevular, tur, tarih, SIMDI);
+const tr = n => new Intl.NumberFormat('tr-TR').format(n);
+{
+  const { baglam, s } = await ac('light');
+  await s.click('[data-sekme="ist"]');
+  await s.waitForSelector('#ist-kisi');
+  const ay = bekle('ay', '2026-11-21');
+  denet((await s.locator('#ist-etiket').innerText()) === 'Kasım 2026', 'ist: açılışta bu ay');
+  denet((await s.locator('#ist-kisi').innerText()) === String(ay.kisi), 'ist: aylık kişi sayısı hesapla aynı');
+  denet(await s.locator('#ist-grafik .cubuk').count() === 30, 'ist: ay grafiğinde 30 çubuk');
+  denet(await s.locator('.dagilim-satir').count() === ay.islemler.length, 'ist: işlem dağılımı satır sayısı');
+  denet((await s.locator('.dagilim-satir').first().innerText()).includes(ay.islemler[0].ad), 'ist: en çok yapılan işlem en üstte');
+  denet((await s.locator('#ist-ciro').innerText()).includes(tr(ay.ciro)), 'ist: ciro hesapla aynı');
+  denet((await s.locator('#ist-fark').innerText()).includes(String(Math.abs(ay.kisi - ay.oncekiKisi))), 'ist: önceki aya fark yazılır');
+  denet((await s.locator('#ist-gelmedi').innerText()).includes(String(ay.gelmedi)), 'ist: gelmeyen sayısı');
+  denet((await s.locator('#ist-yogun').innerText()).includes(ay.enYogunGun.etiket), 'ist: en yoğun gün yazılır');
+  await tasmaYok(s, 'ist ay');
+  await cek(s, '10-ist-ay');
+
+  await s.click('[data-tur="yil"]');
+  const yil = bekle('yil', '2026-11-21');
+  denet((await s.locator('#ist-etiket').innerText()) === '2026' && (await s.locator('#ist-kisi').innerText()) === tr(yil.kisi), 'ist: yıllık kişi sayısı');
+  denet(await s.locator('#ist-grafik .cubuk').count() === 12, 'ist: yıl grafiğinde 12 çubuk');
+  await tasmaYok(s, 'ist yıl');
+  await cek(s, '11-ist-yil');
+  await s.click('#ist-onceki');
+  denet((await s.locator('#ist-etiket').innerText()) === '2025' && (await s.locator('#ist-kisi').innerText()) === tr(bekle('yil', '2025-11-21').kisi), 'ist: önceki yıla geçilir');
+  await s.click('#ist-sonraki'); await s.click('#ist-sonraki');
+  denet((await s.locator('#ist-etiket').innerText()) === '2027' && (await s.locator('#ist-kisi').innerText()) === '0', 'ist: gelecek yıl sıfır');
+  denet(await s.locator('#ist-bos').isVisible() && await s.locator('.dagilim-satir').count() === 0, 'ist: boş dönemde "kayıt yok" yazısı');
+  await cek(s, '12-ist-bos');
+  await s.click('#ist-onceki');
+
+  await s.click('[data-tur="hafta"]');
+  denet((await s.locator('#ist-etiket').innerText()) === '16–22 Kasım 2026' && await s.locator('#ist-grafik .cubuk').count() === 7, 'ist: hafta görünümü 7 çubuk');
+  denet((await s.locator('#ist-kisi').innerText()) === String(bekle('hafta', '2026-11-21').kisi), 'ist: haftalık kişi sayısı');
+  await cek(s, '13-ist-hafta');
+  await s.click('[data-tur="gun"]');
+  const gn = bekle('gun', '2026-11-21');
+  denet((await s.locator('#ist-etiket').innerText()).includes('21 Kasım 2026') && (await s.locator('#ist-kisi').innerText()) === String(gn.kisi), 'ist: günlük kişi sayısı');
+  denet(await s.locator('#ist-grafik .cubuk').count() === gn.seri.length, 'ist: gün grafiği saat saat');
+  await tasmaYok(s, 'ist gün');
+  await cek(s, '14-ist-gun');
+  await baglam.close();
+}
+{
+  // fiyat girilmemişse ciro kutusu görünmez
+  const veri = BR.varsayilanVeri();
+  veri.randevular.push({ id: 'a', tarih: '2026-11-20', saat: '10:00', sure: 30, ad: 'Fiyatsız', tel: '', islemId: 'sac', islemAd: 'Saç', fiyat: null, durum: 'bekliyor', not: '' });
+  const { baglam, s } = await ac('dark', JSON.stringify(veri));
+  await s.click('[data-sekme="ist"]');
+  await s.waitForSelector('#ist-kisi');
+  denet((await s.locator('#ist-kisi').innerText()) === '1' && await s.locator('#ist-ciro').count() === 0, 'ist: fiyat yoksa ciro kutusu yok');
+  await baglam.close();
+}
+{
+  const { baglam, s } = await ac('dark');
+  await s.click('[data-sekme="ist"]');
+  await s.waitForSelector('#ist-kisi');
+  await cek(s, '15-ist-koyu');
+  await baglam.close();
+}
+
+/* ---------- Task 5: ayarlar ---------- */
+{
+  const { baglam, s } = await ac('light');
+  await s.click('[data-sekme="ayar"]');
+  await s.waitForSelector('#a-dukkan');
+  await tasmaYok(s, 'ayarlar');
+  await cek(s, '16-ayar');
+  await s.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+  await cek(s, '17-ayar-alt');
+
+  await s.fill('#a-dukkan', 'Lider <i>Kuaför</i>'); await s.locator('#a-dukkan').blur();
+  denet((await s.locator('#baslik-dukkan').innerText()) === 'Lider <i>Kuaför</i>' && (await kayit(s)).ayar.dukkan === 'Lider <i>Kuaför</i>', 'ayar: dükkân adı kaydedilir ve başlıkta düz metin görünür');
+
+  await s.selectOption('#a-kapanis', '08:00');
+  denet(await s.locator('#a-saat-hata').isVisible() && (await kayit(s)).ayar.kapanis === '21:00', 'ayar: kapanış açılıştan önceyse kaydedilmez, uyarı çıkar');
+  await s.selectOption('#a-kapanis', '20:00');
+  denet(!(await s.locator('#a-saat-hata').isVisible()) && (await kayit(s)).ayar.kapanis === '20:00', 'ayar: geçerli kapanış kaydedilir');
+
+  await s.click('[data-adim="15"]');
+  denet((await kayit(s)).ayar.adim === 15 && await s.locator('[data-adim="15"]').getAttribute('aria-pressed') === 'true', 'ayar: 15 dakikalık aralık seçilir');
+  await s.click('[data-kapali="6"]');
+  denet((await kayit(s)).ayar.kapali.includes(6), 'ayar: Cumartesi kapalı işaretlenir');
+  await s.click('[data-sekme="gun"]');
+  denet(await s.locator('#kapali-not').isVisible(), 'ayar: kapalı gün gün ekranına yansır');
+  denet(await s.locator('.dilim.bos[data-saat$=":15"], .dilim.bos[data-saat$=":45"]').count() > 0, 'ayar: 15 dakikalık dilimler gün ekranında');
+  denet(await s.locator('.dilim[data-saat="20:00"]').count() === 0 || await s.locator('.rnd').count() > 0, 'ayar: kapanış sonrası boş dilim yok ya da randevu yüzünden uzamış');
+  await s.click('[data-sekme="ayar"]');
+  await s.click('[data-kapali="6"]'); await s.click('[data-adim="30"]');
+  denet(!(await kayit(s)).ayar.kapali.includes(6) && (await kayit(s)).ayar.adim === 30, 'ayar: kapalı gün ve aralık geri alınır');
+
+  // işlem ekle, düzenle, sırala, sil
+  await s.click('#islem-ekle');
+  await s.waitForSelector('#sayfa.acik #i-ad');
+  await s.click('#i-kaydet');
+  denet(await s.locator('#i-hata').isVisible(), 'işlem: adsız kaydedilmez');
+  await s.fill('#i-ad', 'Keratin'); await s.selectOption('#i-sure', '60'); await s.fill('#i-fiyat', '900');
+  await cek(s, '18-islem-formu');
+  await s.click('#i-kaydet');
+  await s.waitForSelector('#sayfa:not(.acik)');
+  const eklenen = (await kayit(s)).islemler.find(i => i.ad === 'Keratin');
+  denet(await s.locator('.islem-satir').count() === 8 && eklenen && eklenen.sure === 60 && eklenen.fiyat === 900, 'işlem: yeni işlem eklenir');
+
+  await s.locator('.islem-satir').first().click();
+  await s.waitForSelector('#sayfa.acik #i-ad');
+  denet(await s.locator('#i-ad').inputValue() === 'Saç', 'işlem: düzenleme mevcut bilgilerle açılır');
+  await s.fill('#i-fiyat', '400'); await s.click('#i-kaydet');
+  await s.waitForSelector('#sayfa:not(.acik)');
+  const k5 = await kayit(s);
+  denet(k5.islemler.find(i => i.id === 'sac').fiyat === 400 && k5.randevular.filter(r => r.islemId === 'sac').every(r => r.fiyat === 350), 'işlem: fiyat değişince eski randevuların fiyatı aynı kalır');
+
+  await s.locator('.islem-satir', { hasText: 'Ağda' }).click();
+  await s.click('#i-sil'); await s.click('#i-sil-evet');
+  await s.waitForSelector('#sayfa:not(.acik)');
+  const k6 = await kayit(s);
+  denet(await s.locator('.islem-satir').count() === 7 && k6.islemler.find(i => i.id === 'agda').silindi === true && k6.randevular.some(r => r.islemAd === 'Ağda'), 'işlem: silinen işlem listeden kalkar, eski randevular adını korur');
+
+  await s.locator('[data-asagi]').first().click();
+  denet((await s.locator('.islem-satir').first().innerText()).includes('Sakal') && (await s.locator('.islem-satir').nth(1).innerText()).startsWith('Saç'), 'işlem: aşağı taşıma sırayı değiştirir');
+  await s.click('[data-sekme="gun"]'); await s.click('#fab');
+  await s.waitForSelector('#sayfa.acik .islem-sec');
+  denet(await s.locator('.islem-sec').count() === 7 && (await s.locator('.islem-sec').first().innerText()).includes('Sakal') && await s.locator('.islem-sec', { hasText: 'Keratin' }).count() === 1, 'işlem: randevu formu güncel işlem listesini gösterir');
+  await s.click('#sayfa-kapat');
+  await s.click('[data-sekme="ayar"]');
+
+  // yedek indir
+  const adet = (await kayit(s)).randevular.length;
+  const [inen] = await Promise.all([s.waitForEvent('download'), s.click('#yedek-indir')]);
+  denet(inen.suggestedFilename() === 'berber-yedek-2026-11-21.json', 'yedek: dosya adı tarihli');
+  const yedek = JSON.parse(await readFile(await inen.path(), 'utf8'));
+  denet(BR.dogrula(yedek) !== null && yedek.randevular.length === adet, 'yedek: indirilen dosya geçerli ve eksiksiz');
+
+  // yanlış dosyalar reddedilir, veri değişmez
+  for (const [ad, icerik] of [['json değil', 'merhaba'], ['başka json', '{"a":1}'], ['boş', '']]) {
+    await s.setInputFiles('#yedek-dosya', { name: 'x.json', mimeType: 'application/json', buffer: Buffer.from(icerik) });
+    await s.waitForSelector('#yedek-hata:not([hidden])');
+    denet((await s.locator('#yedek-hata').innerText()).includes('yedeği değil') && (await kayit(s)).randevular.length === adet, 'yedek: ' + ad + ' dosyası reddedilir, veri değişmez');
+    await s.evaluate(() => { document.querySelector('#yedek-hata').hidden = true; });
+  }
+  // geçerli yedek: onaydan sonra veriyi değiştirir
+  const kucuk = BR.varsayilanVeri(); kucuk.ayar.dukkan = 'Yedekten Gelen';
+  kucuk.randevular.push({ id: 'y1', tarih: '2026-11-21', saat: '16:00', sure: 30, ad: 'Yedek Müşteri', tel: '', islemId: 'sac', islemAd: 'Saç', fiyat: null, durum: 'bekliyor', not: '' });
+  await s.setInputFiles('#yedek-dosya', { name: 'yedek.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(kucuk)) });
+  await s.waitForSelector('#sayfa.acik #yukle-evet');
+  denet((await kayit(s)).randevular.length === adet, 'yedek: onaylanmadan veri değişmez');
+  await cek(s, '19-yedek-onay');
+  await s.click('#yukle-evet');
+  await s.waitForSelector('#sayfa:not(.acik)');
+  denet((await kayit(s)).randevular.length === 1 && (await s.locator('#baslik-dukkan').innerText()) === 'Yedekten Gelen', 'yedek: onaylanınca yedekteki veri yüklenir');
+
+  // örnek verileri yeniden yükle
+  await s.click('#ornek-yukle'); await s.click('#ornek-evet');
+  await s.waitForSelector('#sayfa:not(.acik)');
+  denet((await kayit(s)).ayar.ornek === true && (await kayit(s)).randevular.length > 1000, 'örnek: ayarlardan yeniden yüklenir');
+  await s.click('#ornek-sil'); await s.click('#temiz-evet');
+  await s.waitForSelector('#sayfa:not(.acik)');
+  denet((await kayit(s)).randevular.length === 0 && await s.locator('#ornek-yukle').isVisible(), 'örnek: ayarlardan silinir');
+  await baglam.close();
+}
+{
+  const { baglam, s } = await ac('dark');
+  await s.click('[data-sekme="ayar"]');
+  await s.waitForSelector('#a-dukkan');
+  await cek(s, '20-ayar-koyu');
   await baglam.close();
 }
 
