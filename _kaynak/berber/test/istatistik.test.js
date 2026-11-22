@@ -23,7 +23,8 @@ test('donem etiketleri', () => {
   eq(BR.donem('yil','2026-11-21').etiket, '2026');
   eq(BR.donem('gun','2026-11-21').etiket, '21 Kasım 2026 Cumartesi');
   eq(BR.donem('hafta','2026-11-21').etiket, '16–22 Kasım 2026');
-  eq(BR.donem('hafta','2026-12-30').etiket, '28 Aralık – 3 Ocak 2027');
+  eq(BR.donem('hafta','2026-12-30').etiket, '28 Aralık 2026 – 3 Ocak 2027'); // yıl değişiyorsa iki yıl da yazılır
+  eq(BR.donem('hafta','2026-12-02').etiket, '30 Kasım – 6 Aralık 2026');
 });
 test('donemKaydir', () => {
   eq(BR.donemKaydir('ay','2026-01-31', 1), '2026-02-28');
@@ -50,7 +51,8 @@ test('istatistik seri: hafta, yıl, gün', () => {
   const y = BR.istatistik(rs, 'yil', '2026-11-21', simdi);
   eq(y.seri[0].etiket, 'Oca'); eq(y.seri[11].etiket, 'Ara'); eq(y.seri[2].kisi, 1); eq(y.seri[10].kisi, 4); eq(y.kisi, 5);
   const gn = BR.istatistik(rs, 'gun', '2026-11-21', simdi);
-  deepEq(gn.seri, [{etiket:'09:00', kisi:2}, {etiket:'14:00', kisi:1}]); eq(gn.enYogunGun, null); eq(gn.oncekiKisi, 0);
+  deepEq(gn.seri.map(x => x.etiket), ['09:00','10:00','11:00','12:00','13:00','14:00']); // aradaki boş saatler de gösterilir
+  deepEq(gn.seri.map(x => x.kisi), [2,0,0,0,0,1]); eq(gn.enYogunGun, null); eq(gn.oncekiKisi, 0);
 });
 test('istatistik boş dönem', () => {
   const s = BR.istatistik([], 'yil', '2026-11-21', simdi);
@@ -60,4 +62,29 @@ test('istatistik boş dönem', () => {
 test('silinen işlemin geçmişi adını korur', () => {
   const s = BR.istatistik([r('2026-11-03','10:00',{islemId:'yok', islemAd:'Eski İşlem', fiyat:200})], 'ay', '2026-11-21', simdi);
   deepEq(s.islemler, [{ad:'Eski İşlem', kisi:1, yuzde:100}]); eq(s.ciro, 200);
+});
+
+/* ---- müşteriye gitmeden önceki denetimde bulunanlar ---- */
+test('"Geldi" işaretlenen randevu saati gelmeden de sayılır', () => {
+  ok(BR.sayilir(r('2026-11-21','18:00',{durum:'geldi'}), simdi));
+  ok(!BR.sayilir(r('2026-11-21','18:00'), simdi));
+});
+test('işlem yüzdelerinin toplamı 100 eder', () => {
+  const rs = [r('2026-11-02','10:00',{islemAd:'A'}), r('2026-11-02','11:00',{islemAd:'B'}), r('2026-11-02','12:00',{islemAd:'C'})];
+  const y = BR.istatistik(rs, 'ay', '2026-11-21', simdi).islemler.map(x => x.yuzde);
+  deepEq(y, [34, 33, 33]);
+  const rs7 = Array.from({length: 7}, (_, i) => r('2026-11-0' + (i + 1), '10:00', {islemAd: 'İ' + (i % 6)}));
+  eq(BR.istatistik(rs7, 'ay', '2026-11-21', simdi).islemler.reduce((t, x) => t + x.yuzde, 0), 100);
+});
+
+test('süren dönem, önceki dönemin aynı zamanına kadar olanla karşılaştırılır; gelecek dönem ayrı bildirilir', () => {
+  // simdi: 21 Kasım 15:00. Ekim: 15'i, 21'i 14:00, 21'i 16:00, 28'i
+  const rs = [r('2026-11-02','10:00'), r('2026-10-15','10:00'), r('2026-10-21','14:00'), r('2026-10-21','16:00'), r('2026-10-28','10:00')];
+  const s = BR.istatistik(rs, 'ay', '2026-11-21', simdi);
+  eq(s.oncekiKisi, 4); eq(s.oncekiAyni, 2); eq(s.suruyor, true); eq(s.basladi, true); eq(s.yazili, 0);
+  const gecmis = BR.istatistik(rs, 'ay', '2026-10-21', simdi);
+  eq(gecmis.suruyor, false); eq(gecmis.oncekiAyni, gecmis.oncekiKisi);
+  const gelecek = BR.istatistik(rs.concat(r('2026-12-05','10:00'), r('2026-12-06','10:00',{durum:'iptal'})), 'ay', '2026-12-10', simdi);
+  eq(gelecek.basladi, false); eq(gelecek.kisi, 0); eq(gelecek.yazili, 1);
+  eq(BR.istatistik(rs.concat(r('2026-11-25','10:00')), 'ay', '2026-11-21', simdi).yazili, 1); // süren dönemde sırada bekleyen
 });

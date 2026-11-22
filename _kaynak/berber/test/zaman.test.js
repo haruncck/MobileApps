@@ -33,6 +33,24 @@ test('gunOzeti', () => {
   const ayar = {acilis:'09:00', kapanis:'11:00', adim:30};
   const rs = [{id:'a', tarih:'2026-11-21', saat:'09:00', sure:45, durum:'bekliyor'},
               {id:'b', tarih:'2026-11-21', saat:'10:30', sure:30, durum:'iptal'}];
-  deepEq(BR.gunOzeti(ayar, rs, '2026-11-21'), {randevu:1, bosDilim:2}); // 10:00 ve 10:30 boş
+  deepEq(BR.gunOzeti(ayar, rs, '2026-11-21'), {randevu:1, bosDilim:2, bosDakika:60}); // 10:00 ve 10:30 boş
+});
+test('gunOzeti bugün için yalnızca kalan boş zamanı sayar', () => {
+  const ayar = {acilis:'09:00', kapanis:'21:00', adim:30};
+  eq(BR.gunOzeti(ayar, [], '2026-11-21').bosDakika, 720);
+  eq(BR.gunOzeti(ayar, [], '2026-11-21', 14 * 60 + 25).bosDakika, 420);  // 14:00 dilimi sürüyor, sayılır: 14:00–21:00
+  eq(BR.gunOzeti(ayar, [], '2026-11-21', 21 * 60 + 5).bosDakika, 0);     // kapanıştan sonra
+  eq(BR.gunOzeti(ayar, [], '2026-11-21', 8 * 60).bosDakika, 720);        // açılıştan önce
+  eq(BR.gunOzeti({acilis:'09:00', kapanis:'21:00', adim:15}, [], '2026-11-21').bosDakika, 720); // adım değişse de süre aynı
+});
+test('sureYaz', () => {
+  eq(BR.sureYaz(0), '0 dk'); eq(BR.sureYaz(30), '30 dk'); eq(BR.sureYaz(60), '1 saat'); eq(BR.sureYaz(90), '1,5 saat');
+  eq(BR.sureYaz(720), '12 saat'); eq(BR.sureYaz(75), '1 sa 15 dk'); eq(BR.sureYaz(270), '4,5 saat');
 });
 test('kacis', () => eq(BR.kacis(`<b>"A&B'</b>`), '&lt;b&gt;&quot;A&amp;B&#39;&lt;/b&gt;'));
+
+test('gunOzeti boş zamanı yalnızca çalışma saatleri içinde sayar', () => {
+  const ayar = {acilis:'11:00', kapanis:'13:00', adim:30};
+  const rs = [{id:'a', tarih:'2026-11-21', saat:'07:00', sure:30, durum:'bekliyor'}, {id:'b', tarih:'2026-11-21', saat:'23:30', sure:30, durum:'bekliyor'}];
+  deepEq(BR.gunOzeti(ayar, rs, '2026-11-21'), {randevu:2, bosDilim:4, bosDakika:120});
+});

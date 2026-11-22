@@ -22,33 +22,45 @@
   const AGIRLIK = [['sac', 30, 350], ['sakal', 12, 150], ['sacsakal', 38, 450], ['cocuk', 8, 250], ['agda', 4, 100], ['fon', 4, 150], ['cilt', 4, 300]];
   // Pazartesi başlangıçlı gün yoğunluğu [en az, en çok]
   const YOGUNLUK = [[6, 9], [7, 11], [7, 11], [7, 11], [9, 13], [10, 14], [0, 0]];
-  const AY_GERI = 14, GUN_ILERI = 6;
+  const AY_GERI = 24, GUN_ILERI = 6;        // iki yıl: yıllık karşılaştırma da dolu görünsün
+  const YETISKIN = 300, COCUK = 40, ARA_GUN = 14; // aynı müşteri en erken 14 gün sonra yeniden gelir
 
   BR.ORNEK_FIYAT = Object.fromEntries(AGIRLIK.map(a => [a[0], a[2]]));
 
-  // "Temiz başla": yalnızca örnek randevuları ve değiştirilmemiş örnek fiyatları siler; kullanıcının eklediği her şey kalır.
+  // "Örnekleri sil": yalnızca örnek randevuları ve değiştirilmemiş örnek fiyatları siler; kullanıcının eklediği her şey kalır.
   BR.ornekleriSil = veri => ({
-    ayar: Object.assign({}, veri.ayar, { ornek: false }),
+    ayar: Object.assign({}, veri.ayar, { ornek: false, ornekGun: '' }),
     islemler: veri.islemler.map(i => Object.assign({}, i, BR.ORNEK_FIYAT[i.id] === i.fiyat ? { fiyat: null } : {})),
     randevular: veri.randevular.filter(r => r.ornek !== true),
+  });
+
+  // Örnek veriler kayıtlıyken gün değiştiyse: örnekler bugüne göre yeniden üretilir, kullanıcının kendi kayıtları,
+  // ayarları ve işlemleri olduğu gibi kalır. Böylece demo bir hafta sonra açıldığında da dolu görünür.
+  BR.ornekYenile = (veri, bugun) => ({
+    ayar: Object.assign({}, veri.ayar, { ornek: true, ornekGun: bugun }),
+    islemler: veri.islemler,
+    randevular: BR.ornekVeri(bugun).randevular.concat(veri.randevular.filter(r => r.ornek !== true)),
   });
 
   BR.ornekVeri = bugun => {
     const veri = BR.varsayilanVeri();
     veri.ayar.ornek = true;
+    veri.ayar.ornekGun = bugun;
     veri.ayar.dukkan = 'By Lider Erkek Kuaförü';
-    for (const i of veri.islemler) i.fiyat = AGIRLIK.find(a => a[0] === i.id)[2];
+    for (const i of veri.islemler) i.fiyat = BR.ORNEK_FIYAT[i.id];
     const islem = id => veri.islemler.find(i => i.id === id);
 
-    // sabit müşteri havuzu; telefonlar bilerek geçersiz (0500 000 …) ki demo sırasında kimse aranmasın
-    const hr = mulberry32(20261121), havuz = [], gorulen = new Set();
-    while (havuz.length < 150) {
-      const ad = ADLAR[Math.floor(hr() * ADLAR.length)] + ' ' + SOYADLAR[Math.floor(hr() * SOYADLAR.length)];
-      const n = havuz.length, telVar = hr() < 0.4;
-      if (gorulen.has(ad)) continue;
-      gorulen.add(ad);
-      havuz.push({ ad, tel: telVar ? '0500 000 ' + String(Math.floor(n / 100)).padStart(2, '0') + ' ' + String(n % 100).padStart(2, '0') : '' });
-    }
+    // Sabit müşteri havuzları. Örnek kayıtlarda telefon yoktur: uydurma bir numara gerçek birine ait çıkabilir.
+    const hr = mulberry32(20261121), adlar = new Set();
+    const havuzUret = adet => {
+      const liste = [];
+      while (liste.length < adet) {
+        const ad = ADLAR[Math.floor(hr() * ADLAR.length)] + ' ' + SOYADLAR[Math.floor(hr() * SOYADLAR.length)];
+        if (!adlar.has(ad)) { adlar.add(ad); liste.push(ad); }
+      }
+      return liste;
+    };
+    const yetiskinler = havuzUret(YETISKIN), cocuklar = havuzUret(COCUK), sonGelis = new Map();
 
     const bd = BR.tarihOku(bugun);
     const ilk = BR.tarihYaz(new Date(bd.getFullYear(), bd.getMonth() - AY_GERI, bd.getDate()));
@@ -63,21 +75,24 @@
       const r = mulberry32(tohum(tarih));
       let adet = enAz + Math.floor(r() * (enCok - enAz + 1));
       if (tarih < bugun) adet = Math.max(4, Math.round(adet * (0.78 + 0.22 * gunNo / toplamGun))); // zamanla büyüyen dükkân
-      if (tarih === bugun) adet = Math.max(adet, 9);
+      if (tarih === bugun) adet = Math.max(adet, 10);
       if (tarih > bugun) adet = Math.max(3, Math.round(adet * (1 - 0.13 * Math.round((BR.tarihOku(tarih) - bd) / 864e5))));
 
       const gun = [];
       for (let k = 0; k < adet; k++) {
         let zar = r() * 100, secim = AGIRLIK[0];
         for (const a of AGIRLIK) { if (zar < a[1]) { secim = a; break; } zar -= a[1]; }
-        const is = islem(secim[0]), musteri = havuz[Math.floor(havuz.length * Math.pow(r(), 1.8))];
+        const is = islem(secim[0]), havuz = is.id === 'cocuk' ? cocuklar : yetiskinler;
         for (let deneme = 0; deneme < 40; deneme++) {
-          const saat = BR.saatYaz(ac + 30 * Math.floor(r() * ((kap - ac) / 30)));
-          if (BR.dakika(saat) + is.sure > kap || gun.some(x => BR.dakika(x.saat) < BR.dakika(saat) + is.sure && BR.dakika(x.saat) + x.sure > BR.dakika(saat)) || gun.some(x => x.ad === musteri.ad)) continue;
+          const ad = havuz[Math.floor(havuz.length * r())];
+          const saat = BR.saatYaz(ac + 30 * Math.floor(r() * ((kap - ac) / 30))), b = BR.dakika(saat);
+          if (b + is.sure > kap || (sonGelis.has(ad) && gunNo - sonGelis.get(ad) < ARA_GUN) ||
+              gun.some(x => BR.dakika(x.saat) < b + is.sure && BR.dakika(x.saat) + x.sure > b)) continue;
           let durum = 'bekliyor';
           if (tarih < bugun) { const z = r(); durum = z < 0.04 ? 'gelmedi' : z < 0.06 ? 'iptal' : 'bekliyor'; }
-          gun.push({ id: 'o' + (no++), tarih, saat, sure: is.sure, ad: musteri.ad, tel: musteri.tel,
+          gun.push({ id: 'o' + (no++), tarih, saat, sure: is.sure, ad, tel: '',
             islemId: is.id, islemAd: is.ad, fiyat: is.fiyat, durum, not: '', ornek: true });
+          sonGelis.set(ad, gunNo);
           break;
         }
       }

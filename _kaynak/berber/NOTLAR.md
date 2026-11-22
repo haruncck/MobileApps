@@ -19,7 +19,7 @@ Tasarım: `2026-11-21-berber-randevu-design.md` · Plan: `2026-11-21-berber-rand
 | 3 | Test komutu dosya kalıbıyla çalışır (`test/*.test.js`) | Yok |
 | 4 | İkonlar planlanandan önce üretildi | Yok |
 | 5 | Randevu satırının yüksekliği süreyle orantılı (45 dk = 1,5 satır) | Tek satırlık değişiklik |
-| 6 | Örnek veri ilk değişikliğe kadar telefona yazılmaz; demo her gün "bugün"e göre dolu açılır | `yukle()` içinde bir satır |
+| 6 | Örnek veriler her gün "bugün"e göre yeniden üretilir (kayıtlı olsa da); kullanıcının kendi kayıtları korunur | Örnek kayıtlarda yapılan işaretlemeler (Geldi/Gelmedi) ertesi gün kaybolur |
 | 7 | Okunamayan kayıt `berber-v1-bozuk` anahtarına kopyalanır | Yok |
 | 8 | Ekran betiği Playwright yolunu `PW` değişkeninden alır | Yalnızca geliştirme |
 | 9 | Açılış/kapanış yarım saatlik listeden seçilir (telefon dili ne olursa olsun 24 saat) | Kapanış en geç 23:30; gece yarısı kapanan dükkâna yetmez |
@@ -40,13 +40,14 @@ Tasarım: `2026-11-21-berber-randevu-design.md` · Plan: `2026-11-21-berber-rand
 
 ## Ertelenen küçük konular
 
-1. İsim alanında Enter klavyeyi kapatmıyor, kaydetmiyor.
-2. "Boş saat" aslında boş dilim sayısı; 15 dakikalık aralıkta "45 boş saat" yazabiliyor, geçmiş dilimler de sayılıyor.
-3. Bildirim şeridi çok uzun isimde taşabiliyor.
-4. Sayfa açılınca klavye odağı arka planda kalıyor.
-5. Android geri tuşu açık formu kapatmak yerine uygulamadan çıkıyor.
-6. Okunamayan kayıt sessizce örnek veriye düşüyor; kurtarma için arayüz yok.
-7. Zayıf internette açılış gecikebilir (önce ağ deneniyor, zaman aşımı yok).
+İlk listedeki yedi konu 22 Kasım denetiminde düzeltildi (aşağıya bakın). Bilinip bırakılanlar:
+
+1. İptal edilen randevu, dolu bir saate geri alınırsa çakışma uyarısı çıkmaz.
+2. 320 px genişlikte hafta şeridindeki günler ve kapalı gün düğmeleri 48 px'ten dar (yükseklikleri 48 px).
+3. İstatistikte uzak bir döneme gidildikten sonra "bugüne dön" kısayolu yok.
+4. Depolama dolmaya yaklaşırken uyarı yok (sınır yaklaşık 27.000 randevu); dolunca kayıt uyarısı çıkar.
+5. Sesle eklemede geçmiş bir tarih ("20 Kasım", bugün 21 Kasım ise) gelecek yıla yazılır; formda görünür.
+6. Sesle eklemede cümle içinde söylenen telefon numarası isme karışır.
 
 ## Gerçek telefonda bakılacaklar
 
@@ -75,3 +76,59 @@ Kararlar ve sınırlar:
 | "Çeyrek geçe / çeyrek kala" tanınmaz | Söylenirse isme karışır; formda düzeltilir |
 | Adı gün adı olan müşteri ("Cuma Yılmaz") gün sanılır | Formda düzeltilir |
 | Yalnızca taklit ses tanımayla sınandı (43 hesap testi, 139 ekran denetimi) | Gerçek mikrofonla Android ve iPhone'da denenmedi |
+
+
+## Müşteriye gitmeden önceki denetim (22 Kasım 2026)
+
+Dört ayrı denetçi uygulamayı telefon boyutunda tarayıcıda kullandı (gün ekranı ve form; istatistik, ayarlar ve yedek; sesle ekleme;
+ilk açılış, kurulum ve çevrimdışı). Yeniden üretilebilen bulgular düzeltildi; her düzeltmenin testi var
+(62 hesap testi, 199 ekran denetimi).
+
+Veri güvenliği:
+- İki pencere (ya da tarayıcı sekmesi + ana ekran uygulaması) açıkken biri diğerinin kaydını eziyordu; artık her pencere diğerinin
+  kaydını alıyor.
+- İsim yazılırken otomatik gelen telefon, isim başka bir müşteriye dönünce eski müşteride kalıyordu.
+- Kayıt telefona yazılamazsa (yer yok) durum değişikliği sessiz kalıyor, yedek yükleme yarım görünüyordu.
+- Çift dokunuş, kapanan sayfanın altından çıkan düğmeye gidiyordu (sekme değişiyor, çakışma uyarısı okunmadan onaylanıyor,
+  randevu "Gelmedi" oluyordu). Sayfa açılıp kapanırken dokunuşlar 0,4 saniye yok sayılır; çakışma onayı 0,6 saniyeden önce kabul edilmez.
+- Perdeye dokunmak yarım kalmış formu kapatmaz.
+- Yedek dosyasında aynı kimlikli kayıtlar, metin olmayan tarih/saat, aşırı fiyat düzeltilir ya da atılır.
+
+Demo görünümü:
+- Kapalı günde (Pazar) açılan demo boş görünüyordu; ilk açık gün gösterilir ve nedeni yazılır.
+- İlk dokunuştan sonra örnekler o güne donuyordu; her gün bugüne göre yenilenir.
+- Örnek müşteriler inandırıcı değildi (aynı kişi birkaç günde bir geliyordu); aynı müşteri en erken 14 gün sonra gelir, çocuk tıraşı
+  ayrı bir müşteri kümesinden gelir, örnekler iki yıl geriye gider.
+- Örnek kayıtlarda telefon yok: uydurma numara gerçek birine ait çıkabilirdi.
+- "Bunlar örnek randevular" şeridi artık başlıkta, her zaman görünür. Düğme her yerde "Örnekleri sil".
+
+Gün ekranı ve form:
+- "+ Randevu" geçmiş bir saat önerebiliyordu; şimdiden sonraki ilk boş saati, yer yoksa sonraki açık günü önerir.
+- Yeni kaydedilen randevu ekrana kaydırılır. Çalışma saatinin iki saat öncesi ve sonrası da seçilebilir.
+- Android geri tuşu açık sayfayı kapatır. "24 boş saat" yerine gerçek süre ("12 saat boş"), yalnızca çalışma saatleri içinde.
+- Mikrofon düğmesi son satırı örtmez. Tam saat başında şimdi çizgisi doğru yerde. Kuruşlu fiyat "99,90 ₺" yazılır.
+
+İstatistik:
+- Süren dönem, önceki dönemin aynı zamanına kadar olan kısmıyla karşılaştırılır ("Geçen ayın bu zamanına göre").
+- Başlamamış dönemde karşılaştırma yerine "henüz başlamadı, N randevu yazılı" yazar. Ekran açıkken sayılar güncellenir.
+- İşlem yeniden adlandırılınca istatistik bölünmez. "Geldi" işaretlenen, saati gelmeden de sayılır. Yüzdeler 100 eder.
+
+Sesle ekleme:
+- "7:30", "3:30" gibi yazımlarda öğleden sonra kuralı uygulanmıyordu (akşam 7:30 → 07:30 oluyordu).
+- "Sabahattin", "Akşamoğlu" gibi isimler gün bölümü sanılıp yutuluyordu.
+- Yeni anlaşılanlar: "haftaya bugün/yarın", "yarın değil öbür gün", "gelecek hafta cuma", "3 gün sonra", "25'inde", "Kasım'ın 25'i",
+  "üç" (eksiz), "yarım", "3 gibi", "fön" / "çocuk" (tek sözcükle işlem), "saç artı sakal", "sakal saç".
+- Gün söylenmezse formda belirtilir ve geçmiş güne yazılmaz.
+
+Çevrimdışı:
+- "?fbclid=…" gibi eklerle açılan bağlantılar eski sayfa + yeni betik karışımına düşebiliyordu; sayfa tek anahtar altında tutulur.
+- Zayıf bağlantıda 4 saniyede yanıt gelmezse önbellekteki kopya açılır. Bir dosya yüklenemezse boş ekran yerine açıklama çıkar.
+
+Bu denetimde verilen kararlar:
+| Karar | Yanlışsa bedeli |
+|---|---|
+| Örnek kayıtlardan telefon kaldırıldı | Demoda Ara / WhatsApp düğmeleri ancak kendi eklenen kayıtta görünür |
+| Kapalı günde açılan demo ilk açık günü gösterir | Müşteri "bugün" yerine başka bir gün görür; şeritte nedeni yazar |
+| Dokunuşlar sayfa geçişinde 0,4 sn yok sayılır | Çok hızlı kullanan biri dokunuşunu tekrarlamak zorunda kalabilir |
+| Müşteri önerisi sözcük başından eşleşir ("ah" → Ahmet; "Şahin" değil) | İsmin ortasından arama yapılamaz |
+| İşlem adı değişince eski randevular da yeni adla anılır (fiyatları aynı kalır) | Eski adla istatistik görülemez |
