@@ -575,6 +575,57 @@ const konus = (s, yazi, ara) => s.evaluate(([y, a]) => window.__ses.konus(y, a),
   await baglam.close();
 }
 
+/* ---------- müşteriye gitmeden önceki denetimde düzeltilenler ---------- */
+{
+  const { baglam, s } = await ac('light');
+  // özet: "24 boş saat" yerine gerçek süre; bugün için kalan
+  denet((await s.locator('.ozet').innerText()).includes('saat boş') && !/\b\d+ boş saat\b/.test(await s.locator('.ozet').innerText()), 'özet: boş zaman süre olarak yazılır');
+  await s.click('#sonraki');
+  denet((await s.locator('#ozet-bos').innerText()).replace(/\s+/g, ' ') === '12 saat boş', 'özet: boş Pazar günü 12 saat boş (24 değil)');
+  await s.click('#bugun');
+
+  // Android geri tuşu: açık sayfayı kapatır, uygulamadan çıkmaz
+  const adres0 = s.url();
+  await s.locator('.rnd').first().click();
+  await s.waitForSelector('#sayfa.acik');
+  denet(await s.evaluate(() => document.querySelector('#sayfa').contains(document.activeElement)), 'odak: sayfa açılınca odak sayfaya geçer');
+  denet(await s.evaluate(() => document.querySelector('#govde').inert === true && document.querySelector('#sekmeler').inert === true), 'odak: sayfa açıkken arka plan etkisiz');
+  await s.goBack();
+  await s.waitForSelector('#sayfa:not(.acik)');
+  denet(s.url() === adres0 && await s.locator('.rnd').count() > 0, 'geri tuşu: açık sayfayı kapatır, uygulamada kalır');
+  denet(await s.evaluate(() => document.querySelector('#govde').inert === false), 'odak: sayfa kapanınca arka plan yeniden etkin');
+  const uzunluk = async () => s.evaluate(() => history.length);
+  await s.click('#fab'); await s.waitForSelector('#sayfa.acik'); await s.click('#sayfa-kapat'); await s.waitForSelector('#sayfa:not(.acik)');
+  await s.waitForTimeout(200);
+  const u1 = await uzunluk();
+  for (let i = 0; i < 3; i++) { await s.click('#fab'); await s.waitForSelector('#sayfa.acik'); await s.click('#sayfa-kapat'); await s.waitForSelector('#sayfa:not(.acik)'); await s.waitForTimeout(200); }
+  denet(await uzunluk() === u1, 'geri tuşu: aç-kapa tekrarları geçmişi şişirmez');
+  // ayrıntı → düzenle → geri: tek geri tuşu kapatır
+  await s.locator('.rnd').first().click(); await s.click('#a-duzenle'); await s.waitForSelector('#sayfa.acik #f-ad');
+  await s.goBack(); await s.waitForSelector('#sayfa:not(.acik)');
+  denet(s.url() === adres0, 'geri tuşu: iç içe açılan sayfada da tek geri yeter');
+
+  // Enter klavyeyi kapatır, kaydetmez
+  await s.click('#fab'); await s.waitForSelector('#sayfa.acik #f-ad');
+  await s.fill('#f-ad', 'Enter Deneme'); await s.press('#f-ad', 'Enter');
+  denet(await s.evaluate(() => document.activeElement.id !== 'f-ad') && await s.locator('#sayfa.acik').count() === 1 && !(await kayit(s)), 'Enter: isim alanında klavyeyi kapatır, kaydetmez');
+  // uzun isimde bildirim taşmaz
+  await s.fill('#f-ad', 'A'.repeat(60)); await s.locator('.islem-sec').nth(1).click();
+  await s.selectOption('#f-saat', (await s.locator('#f-saat option').last().innerText()));
+  await s.click('#f-kaydet');
+  if (await s.locator('#f-cakisma').isVisible()) await s.click('#f-kaydet');
+  await s.waitForSelector('#sayfa:not(.acik)');
+  denet(await s.evaluate(() => { const b = document.querySelector('#bildirim'); return b.classList.contains('acik') && b.scrollWidth <= b.clientWidth && b.getBoundingClientRect().right <= innerWidth; }), 'bildirim: çok uzun isimde taşmaz');
+  await cek(s, '25-bildirim-uzun');
+  await baglam.close();
+}
+{
+  // okunamayan kayıt: sessiz kalmaz
+  const { baglam, s } = await ac('light', '{bozuk json');
+  denet(await s.locator('#bildirim.acik').count() === 1 && (await s.locator('#bildirim').innerText()).includes('okunamadı'), 'depo: okunamayan kayıt için uyarı gösterilir');
+  await baglam.close();
+}
+
 /* EK-DENETIMLER */
 
 await tarayici.close();

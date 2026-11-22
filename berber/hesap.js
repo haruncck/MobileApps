@@ -34,13 +34,22 @@
       !(aday.id != null && r.id === aday.id) && bas(r) < s && son(r) > b);
   };
 
-  BR.gunOzeti = (ayar, randevular, tarih) => {
+  // simdiDk verilirse (bugün için) yalnızca henüz bitmemiş dilimler boş sayılır.
+  BR.gunOzeti = (ayar, randevular, tarih, simdiDk) => {
     const gun = randevular.filter(r => r.tarih === tarih), dolu = gun.filter(aktif);
     const bosDilim = BR.dilimler(ayar, gun).filter(saat => {
       const b = BR.dakika(saat), s = b + ayar.adim;
+      if (simdiDk != null && s <= simdiDk) return false;
       return !dolu.some(r => bas(r) < s && son(r) > b);
     }).length;
-    return { randevu: dolu.length, bosDilim };
+    return { randevu: dolu.length, bosDilim, bosDakika: bosDilim * ayar.adim };
+  };
+
+  // Dakikayı okunur süreye çevirir: 30 → "30 dk", 90 → "1,5 saat", 75 → "1 sa 15 dk".
+  BR.sureYaz = dk => {
+    const s = Math.floor(dk / 60), kalan = dk % 60;
+    if (s === 0) return dk + ' dk';
+    return kalan === 0 ? s + ' saat' : kalan === 30 ? s + ',5 saat' : s + ' sa ' + kalan + ' dk';
   };
 
   /* ---------- sayım ve dönem ---------- */
