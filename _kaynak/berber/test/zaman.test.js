@@ -48,3 +48,9 @@ test('sureYaz', () => {
   eq(BR.sureYaz(720), '12 saat'); eq(BR.sureYaz(75), '1 sa 15 dk'); eq(BR.sureYaz(270), '4,5 saat');
 });
 test('kacis', () => eq(BR.kacis(`<b>"A&B'</b>`), '&lt;b&gt;&quot;A&amp;B&#39;&lt;/b&gt;'));
+
+test('gunOzeti boş zamanı yalnızca çalışma saatleri içinde sayar', () => {
+  const ayar = {acilis:'11:00', kapanis:'13:00', adim:30};
+  const rs = [{id:'a', tarih:'2026-11-21', saat:'07:00', sure:30, durum:'bekliyor'}, {id:'b', tarih:'2026-11-21', saat:'23:30', sure:30, durum:'bekliyor'}];
+  deepEq(BR.gunOzeti(ayar, rs, '2026-11-21'), {randevu:2, bosDilim:4, bosDakika:120});
+});

@@ -32,14 +32,14 @@ let gecen = 0;
 const denet = (kosul, ad) => { if (kosul) gecen++; else { dusen.push(ad); console.log('DÜŞTÜ:', ad); } };
 
 const tarayici = await chromium.launch({ channel: 'chrome' });
-async function ac(tema, depo, sw, ilk) {
+async function ac(tema, depo, sw, ilk, saat) {
   const baglam = await tarayici.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true,
     locale: 'tr-TR', timezoneId: 'Europe/Istanbul', colorScheme: tema, serviceWorkers: sw ? 'allow' : 'block', acceptDownloads: true });
   const s = await baglam.newPage();
   s.on('console', m => { if (m.type() === 'error') hatalar.push(m.text()); });
   s.on('pageerror', e => hatalar.push(String(e)));
   s.on('response', y => { if (y.status() >= 400) hatalar.push(y.status() + ' ' + y.url()); });
-  await s.clock.install({ time: new Date('2026-11-21T14:25:00+03:00') });
+  await s.clock.install({ time: new Date(saat || '2026-11-21T14:25:00+03:00') });
   if (depo !== undefined) await s.addInitScript(d => { if (!sessionStorage.getItem('ekildi')) { localStorage.setItem('berber-v1', d); sessionStorage.setItem('ekildi', '1'); } }, depo);
   if (ilk) await s.addInitScript(ilk);
   await s.goto(adres);
@@ -70,7 +70,7 @@ const kayit = s => s.evaluate(() => JSON.parse(localStorage.getItem('berber-v1')
   await s.locator('.islem-sec').nth(1).click(); // Sakal: 15 dk, her boş dilime sığar
   await cek(s, '02-form-acik');
   await s.click('#f-kaydet');
-  await s.waitForSelector('#sayfa:not(.acik)');
+  await s.waitForSelector('#sayfa:not(.acik)', { state: 'attached' });
   const yeni = s.locator('.rnd', { hasText: 'Zeki' });
   denet(await yeni.count() === 1, 'form: kaydedilen randevu listede');
   denet((await yeni.locator('.rnd-ad').innerText()) === '<b>Zeki</b> Deneme', 'güvenlik: isim düz metin olarak görünür');
@@ -90,8 +90,9 @@ const kayit = s => s.evaluate(() => JSON.parse(localStorage.getItem('berber-v1')
   denet(await s.locator('#f-cakisma').isVisible() && (await s.locator('#f-cakisma').innerText()).includes('Zeki'), 'form: çakışmada kimin olduğu yazılır');
   denet((await s.locator('#f-kaydet').innerText()).includes('Yine de'), 'form: düğme "Yine de kaydet" olur');
   await cek(s, '03-form-cakisma');
+  await s.waitForTimeout(450); // uyarı çıktıktan hemen sonraki dokunuş onay sayılmaz
   await s.click('#f-kaydet');
-  await s.waitForSelector('#sayfa:not(.acik)');
+  await s.waitForSelector('#sayfa:not(.acik)', { state: 'attached' });
   denet(await s.locator('.rnd', { hasText: 'Çakışan Müşteri' }).count() === 1, 'form: onaylanınca çakışan randevu eklenir');
 
   // randevuya dokun → ayrıntı → gelmedi işaretle → sil
@@ -102,7 +103,7 @@ const kayit = s => s.evaluate(() => JSON.parse(localStorage.getItem('berber-v1')
   denet((await kayit(s)).randevular.find(r => r.ad === 'Çakışan Müşteri').durum === 'gelmedi', 'ayrıntı: gelmedi işaretlenir ve kaydedilir');
   await s.click('#a-sil');
   await s.click('#a-sil-evet');
-  await s.waitForSelector('#sayfa:not(.acik)');
+  await s.waitForSelector('#sayfa:not(.acik)', { state: 'attached' });
   denet(!(await kayit(s)).randevular.some(r => r.ad === 'Çakışan Müşteri'), 'ayrıntı: silinen randevu depodan kalkar');
 
   // düzenle: ismi değiştir
@@ -113,7 +114,7 @@ const kayit = s => s.evaluate(() => JSON.parse(localStorage.getItem('berber-v1')
   await s.fill('#f-ad', 'Zeki Usta');
   await s.fill('#f-tel', '0532 111 22 33');
   await s.click('#f-kaydet');
-  await s.waitForSelector('#sayfa:not(.acik)');
+  await s.waitForSelector('#sayfa:not(.acik)', { state: 'attached' });
   denet(await s.locator('.rnd', { hasText: 'Zeki Usta' }).count() === 1 && (await kayit(s)).randevular.filter(r => r.ad.includes('Zeki')).length === 1, 'düzenle: aynı randevu güncellenir, kopya oluşmaz');
   await s.locator('.rnd', { hasText: 'Zeki Usta' }).click();
   denet((await s.locator('#a-wa').getAttribute('href')).startsWith('https://wa.me/905321112233?text='), 'ayrıntı: WhatsApp bağlantısı 90 ile başlar');
@@ -203,7 +204,7 @@ const tr = n => new Intl.NumberFormat('tr-TR').format(n);
   denet(await s.locator('.dagilim-satir').count() === ay.islemler.length, 'ist: işlem dağılımı satır sayısı');
   denet((await s.locator('.dagilim-satir').first().innerText()).includes(ay.islemler[0].ad), 'ist: en çok yapılan işlem en üstte');
   denet((await s.locator('#ist-ciro').innerText()).includes(tr(ay.ciro)), 'ist: ciro hesapla aynı');
-  denet((await s.locator('#ist-fark').innerText()).includes(String(Math.abs(ay.kisi - ay.oncekiKisi))), 'ist: önceki aya fark yazılır');
+  denet((await s.locator('#ist-fark').innerText()).includes(String(Math.abs(ay.kisi - ay.oncekiAyni))) && (await s.locator('#ist-fark').innerText()).includes('Geçen ayın bu zamanına'), 'ist: süren ay, geçen ayın aynı zamanıyla karşılaştırılır');
   denet((await s.locator('#ist-gelmedi').innerText()).includes(String(ay.gelmedi)), 'ist: gelmeyen sayısı');
   denet((await s.locator('#ist-yogun').innerText()).includes(ay.enYogunGun.etiket), 'ist: en yoğun gün yazılır');
   await tasmaYok(s, 'ist ay');
@@ -219,9 +220,11 @@ const tr = n => new Intl.NumberFormat('tr-TR').format(n);
   denet((await s.locator('#ist-etiket').innerText()) === '2025' && (await s.locator('#ist-kisi').innerText()) === tr(bekle('yil', '2025-11-21').kisi), 'ist: önceki yıla geçilir');
   await s.click('#ist-sonraki'); await s.click('#ist-sonraki');
   denet((await s.locator('#ist-etiket').innerText()) === '2027' && (await s.locator('#ist-kisi').innerText()) === '0', 'ist: gelecek yıl sıfır');
-  denet(await s.locator('#ist-bos').isVisible() && await s.locator('.dagilim-satir').count() === 0, 'ist: boş dönemde "kayıt yok" yazısı');
+  denet((await s.locator('#ist-fark').innerText()).includes('henüz başlamadı') && await s.locator('.dagilim-satir').count() === 0, 'ist: başlamamış dönemde karşılaştırma yerine bilgi yazısı');
+  for (let i = 0; i < 4; i++) await s.click('#ist-onceki');
+  denet((await s.locator('#ist-etiket').innerText()) === '2023' && await s.locator('#ist-bos').isVisible() && (await s.locator('#ist-bos').innerText()).includes('kayıt yok'), 'ist: geçmiş boş dönemde "kayıt yok" yazısı');
   await cek(s, '12-ist-bos');
-  await s.click('#ist-onceki');
+  for (let i = 0; i < 3; i++) await s.click('#ist-sonraki');
 
   await s.click('[data-tur="hafta"]');
   denet((await s.locator('#ist-etiket').innerText()) === '16–22 Kasım 2026' && await s.locator('#ist-grafik .cubuk').count() === 7, 'ist: hafta görünümü 7 çubuk');
@@ -291,7 +294,7 @@ const tr = n => new Intl.NumberFormat('tr-TR').format(n);
   await s.fill('#i-ad', 'Keratin'); await s.selectOption('#i-sure', '60'); await s.fill('#i-fiyat', '900');
   await cek(s, '18-islem-formu');
   await s.click('#i-kaydet');
-  await s.waitForSelector('#sayfa:not(.acik)');
+  await s.waitForSelector('#sayfa:not(.acik)', { state: 'attached' });
   const eklenen = (await kayit(s)).islemler.find(i => i.ad === 'Keratin');
   denet(await s.locator('.islem-satir').count() === 8 && eklenen && eklenen.sure === 60 && eklenen.fiyat === 900, 'işlem: yeni işlem eklenir');
 
@@ -299,13 +302,13 @@ const tr = n => new Intl.NumberFormat('tr-TR').format(n);
   await s.waitForSelector('#sayfa.acik #i-ad');
   denet(await s.locator('#i-ad').inputValue() === 'Saç', 'işlem: düzenleme mevcut bilgilerle açılır');
   await s.fill('#i-fiyat', '400'); await s.click('#i-kaydet');
-  await s.waitForSelector('#sayfa:not(.acik)');
+  await s.waitForSelector('#sayfa:not(.acik)', { state: 'attached' });
   const k5 = await kayit(s);
   denet(k5.islemler.find(i => i.id === 'sac').fiyat === 400 && k5.randevular.filter(r => r.islemId === 'sac').every(r => r.fiyat === 350), 'işlem: fiyat değişince eski randevuların fiyatı aynı kalır');
 
   await s.locator('.islem-satir', { hasText: 'Ağda' }).click();
   await s.click('#i-sil'); await s.click('#i-sil-evet');
-  await s.waitForSelector('#sayfa:not(.acik)');
+  await s.waitForSelector('#sayfa:not(.acik)', { state: 'attached' });
   const k6 = await kayit(s);
   denet(await s.locator('.islem-satir').count() === 7 && k6.islemler.find(i => i.id === 'agda').silindi === true && k6.randevular.some(r => r.islemAd === 'Ağda'), 'işlem: silinen işlem listeden kalkar, eski randevular adını korur');
 
@@ -339,15 +342,15 @@ const tr = n => new Intl.NumberFormat('tr-TR').format(n);
   denet((await kayit(s)).randevular.length === adet, 'yedek: onaylanmadan veri değişmez');
   await cek(s, '19-yedek-onay');
   await s.click('#yukle-evet');
-  await s.waitForSelector('#sayfa:not(.acik)');
+  await s.waitForSelector('#sayfa:not(.acik)', { state: 'attached' });
   denet((await kayit(s)).randevular.length === 1 && (await s.locator('#baslik-dukkan').innerText()) === 'Yedekten Gelen', 'yedek: onaylanınca yedekteki veri yüklenir');
 
   // örnek verileri yeniden yükle
   await s.click('#ornek-yukle'); await s.click('#ornek-evet');
-  await s.waitForSelector('#sayfa:not(.acik)');
+  await s.waitForSelector('#sayfa:not(.acik)', { state: 'attached' });
   denet((await kayit(s)).ayar.ornek === true && (await kayit(s)).randevular.length > 1000, 'örnek: ayarlardan yeniden yüklenir');
   await s.click('#ornek-sil'); await s.click('#temiz-evet');
-  await s.waitForSelector('#sayfa:not(.acik)');
+  await s.waitForSelector('#sayfa:not(.acik)', { state: 'attached' });
   denet((await kayit(s)).randevular.length === 0 && await s.locator('#ornek-yukle').isVisible(), 'örnek: ayarlardan silinir');
   await baglam.close();
 }
@@ -421,13 +424,13 @@ const tr = n => new Intl.NumberFormat('tr-TR').format(n);
   denet(await s.locator('#f-tel').inputValue() === '0532 000 00 01', 'öneri: isim tam yazılınca telefon kendiliğinden dolar');
   await s.fill('#f-fiyat', '1.500');
   await s.click('#f-kaydet');
-  await s.waitForSelector('#sayfa:not(.acik)');
+  await s.waitForSelector('#sayfa:not(.acik)', { state: 'attached' });
   denet((await kayit(s)).randevular.find(x => x.ad === 'Ali Telefonlu' && x.tarih === '2026-11-21').fiyat === 1500, 'fiyat: "1.500" bin beş yüz olarak kaydedilir');
   await s.click('[data-sekme="ayar"]');
   denet((await s.locator('[data-adim="15"]').boundingBox()).height >= 48, 'dokunma: aralık seçimi en az 48 px');
   await s.locator('.islem-satir').first().click();
   await s.fill('#i-fiyat', '2.250'); await s.click('#i-kaydet');
-  await s.waitForSelector('#sayfa:not(.acik)');
+  await s.waitForSelector('#sayfa:not(.acik)', { state: 'attached' });
   denet((await kayit(s)).islemler[0].fiyat === 2250, 'fiyat: işlem fiyatında da binlik nokta anlaşılır');
   await s.click('[data-sekme="ist"]');
   denet((await s.locator('[data-tur="ay"]').boundingBox()).height >= 48, 'dokunma: dönem seçimi en az 48 px');
@@ -438,9 +441,9 @@ const tr = n => new Intl.NumberFormat('tr-TR').format(n);
   const { baglam, s } = await ac('light');
   await s.locator('.rnd').first().click(); await s.click('#a-duzenle');
   await s.fill('#f-ad', 'Sahiplenilen'); await s.click('#f-kaydet');
-  await s.waitForSelector('#sayfa:not(.acik)');
+  await s.waitForSelector('#sayfa:not(.acik)', { state: 'attached' });
   await s.click('[data-sekme="ayar"]'); await s.click('#ornek-sil'); await s.click('#temiz-evet');
-  await s.waitForSelector('#sayfa:not(.acik)');
+  await s.waitForSelector('#sayfa:not(.acik)', { state: 'attached' });
   const k = await kayit(s);
   denet(k.randevular.length === 1 && k.randevular[0].ad === 'Sahiplenilen', 'örnek: düzenlenen örnek randevu kullanıcının sayılır ve silinmez');
   await baglam.close();
@@ -495,7 +498,7 @@ const konus = (s, yazi, ara) => s.evaluate(([y, a]) => window.__ses.konus(y, a),
   await cek(s, '22-ses-form');
   denet(!(await kayit(s)), 'ses: onaylanmadan hiçbir şey kaydedilmez');
   await s.click('#f-kaydet');
-  await s.waitForSelector('#sayfa:not(.acik)');
+  await s.waitForSelector('#sayfa:not(.acik)', { state: 'attached' });
   const k = (await kayit(s)).randevular.find(r => r.ad === 'Ahmet Kaya' && r.tarih === '2026-11-22');
   denet(k && k.saat === '15:00' && k.islemAd === 'Saç + Sakal' && !k.ornek, 'ses: Kaydet ile randevu yazılır');
   denet((await s.locator('#baslik-tarih').innerText()).includes('22 Kasım'), 'ses: kayıttan sonra o güne geçilir');
@@ -519,7 +522,7 @@ const konus = (s, yazi, ara) => s.evaluate(([y, a]) => window.__ses.konus(y, a),
   // vazgeç: dinleme durur, geç gelen sonuç form açmaz
   await s.click('#mikrofon'); await s.waitForSelector('#sayfa.acik #ses-yazi');
   await s.click('#ses-vazgec');
-  await s.waitForSelector('#sayfa:not(.acik)');
+  await s.waitForSelector('#sayfa:not(.acik)', { state: 'attached' });
   denet(await s.evaluate(() => window.__ses.iptal === true), 'ses: vazgeçince dinleme durdurulur');
   await s.evaluate(() => { window.__ses.onresult && window.__ses.onresult({ results: [[{ transcript: 'Geç Kalan yarın 3' }]] }); window.__ses.onend && window.__ses.onend(); });
   denet(await s.locator('#sayfa.acik').count() === 0, 'ses: vazgeçtikten sonra gelen sonuç form açmaz');
@@ -591,18 +594,18 @@ const konus = (s, yazi, ara) => s.evaluate(([y, a]) => window.__ses.konus(y, a),
   denet(await s.evaluate(() => document.querySelector('#sayfa').contains(document.activeElement)), 'odak: sayfa açılınca odak sayfaya geçer');
   denet(await s.evaluate(() => document.querySelector('#govde').inert === true && document.querySelector('#sekmeler').inert === true), 'odak: sayfa açıkken arka plan etkisiz');
   await s.goBack();
-  await s.waitForSelector('#sayfa:not(.acik)');
+  await s.waitForSelector('#sayfa:not(.acik)', { state: 'attached' });
   denet(s.url() === adres0 && await s.locator('.rnd').count() > 0, 'geri tuşu: açık sayfayı kapatır, uygulamada kalır');
   denet(await s.evaluate(() => document.querySelector('#govde').inert === false), 'odak: sayfa kapanınca arka plan yeniden etkin');
   const uzunluk = async () => s.evaluate(() => history.length);
-  await s.click('#fab'); await s.waitForSelector('#sayfa.acik'); await s.click('#sayfa-kapat'); await s.waitForSelector('#sayfa:not(.acik)');
+  await s.click('#fab'); await s.waitForSelector('#sayfa.acik'); await s.click('#sayfa-kapat'); await s.waitForSelector('#sayfa:not(.acik)', { state: 'attached' });
   await s.waitForTimeout(200);
   const u1 = await uzunluk();
-  for (let i = 0; i < 3; i++) { await s.click('#fab'); await s.waitForSelector('#sayfa.acik'); await s.click('#sayfa-kapat'); await s.waitForSelector('#sayfa:not(.acik)'); await s.waitForTimeout(200); }
+  for (let i = 0; i < 3; i++) { await s.click('#fab'); await s.waitForSelector('#sayfa.acik'); await s.click('#sayfa-kapat'); await s.waitForSelector('#sayfa:not(.acik)', { state: 'attached' }); await s.waitForTimeout(200); }
   denet(await uzunluk() === u1, 'geri tuşu: aç-kapa tekrarları geçmişi şişirmez');
   // ayrıntı → düzenle → geri: tek geri tuşu kapatır
   await s.locator('.rnd').first().click(); await s.click('#a-duzenle'); await s.waitForSelector('#sayfa.acik #f-ad');
-  await s.goBack(); await s.waitForSelector('#sayfa:not(.acik)');
+  await s.goBack(); await s.waitForSelector('#sayfa:not(.acik)', { state: 'attached' });
   denet(s.url() === adres0, 'geri tuşu: iç içe açılan sayfada da tek geri yeter');
 
   // Enter klavyeyi kapatır, kaydetmez
@@ -613,8 +616,8 @@ const konus = (s, yazi, ara) => s.evaluate(([y, a]) => window.__ses.konus(y, a),
   await s.fill('#f-ad', 'A'.repeat(60)); await s.locator('.islem-sec').nth(1).click();
   await s.selectOption('#f-saat', (await s.locator('#f-saat option').last().innerText()));
   await s.click('#f-kaydet');
-  if (await s.locator('#f-cakisma').isVisible()) await s.click('#f-kaydet');
-  await s.waitForSelector('#sayfa:not(.acik)');
+  if (await s.locator('#f-cakisma').isVisible()) { await s.waitForTimeout(700); await s.click('#f-kaydet'); }
+  await s.waitForSelector('#sayfa:not(.acik)', { state: 'attached' });
   denet(await s.evaluate(() => { const b = document.querySelector('#bildirim'); return b.classList.contains('acik') && b.scrollWidth <= b.clientWidth && b.getBoundingClientRect().right <= innerWidth; }), 'bildirim: çok uzun isimde taşmaz');
   await cek(s, '25-bildirim-uzun');
   await baglam.close();
@@ -623,6 +626,230 @@ const konus = (s, yazi, ara) => s.evaluate(([y, a]) => window.__ses.konus(y, a),
   // okunamayan kayıt: sessiz kalmaz
   const { baglam, s } = await ac('light', '{bozuk json');
   denet(await s.locator('#bildirim.acik').count() === 1 && (await s.locator('#bildirim').innerText()).includes('okunamadı'), 'depo: okunamayan kayıt için uyarı gösterilir');
+  await baglam.close();
+}
+
+{
+  // sesle ekleme: gün söylenmezse belirtir, geçmiş güne yazmaz, uzun ismi keser, mikrofon son satırı örtmez
+  const { baglam, s } = await ac('light', undefined, false, SAHTE_SES);
+  await s.click('#onceki'); await s.click('#onceki'); // 19 Kasım'a bak
+  await s.click('#mikrofon'); await s.waitForSelector('#sayfa.acik #ses-yazi');
+  await konus(s, 'x'.repeat(300), true);
+  denet((await s.locator('#ses-yazi').boundingBox()).height <= 150, 'ses: çok uzun cümle dinleme sayfasını taşırmaz');
+  await konus(s, 'Abdurrahman'.repeat(9) + ' saat 3 saç');
+  await s.waitForSelector('#sayfa.acik #f-ad');
+  denet(await s.locator('#f-tarih').inputValue() === '2026-11-21' && (await s.locator('#f-duyulan').innerText()).includes('Gün söylenmedi'), 'ses: gün söylenmezse bugüne yazar ve bunu belirtir (geçmiş güne değil)');
+  denet((await s.locator('#f-ad').inputValue()).length === 60, 'ses: 60 karakterden uzun isim kesilir');
+  await s.click('#sayfa-kapat');
+  denet(await s.evaluate(() => { const m = document.querySelector('#mikrofon'); m.click(); const ilk = window.__ses; m.click(); return ilk.iptal === true && window.__ses !== ilk; }), 'ses: ikinci başlatma ilk dinlemeyi durdurur');
+  await s.click('#ses-vazgec');
+  await s.click('#bugun'); await s.click('#sonraki'); // boş Pazar
+  await s.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+  denet(await s.evaluate(() => { const a = [...document.querySelectorAll('.dilim.bos .arti')].pop().getBoundingClientRect(); const e = document.elementFromPoint(a.left + a.width / 2, a.top + a.height / 2); return !!e && !!e.closest('.dilim.bos'); }), 'ses: mikrofon son boş saatin + düğmesini örtmez');
+  await cek(s, '26-gun-alt');
+  await baglam.close();
+}
+{
+  // istatistik: işlem yeniden adlandırma, canlı tazeleme, gelecek dönem, "Geldi"
+  const { baglam, s } = await ac('light');
+  await s.click('[data-sekme="ist"]'); await s.waitForSelector('#ist-kisi');
+  const sacOnce = (await s.locator('.dagilim-satir', { hasText: /^Saç\s*\d/ }).first().innerText()).match(/(\d+) kişi/)[1];
+  await s.click('[data-sekme="ayar"]');
+  await s.locator('.islem-satir').first().click(); await s.fill('#i-ad', 'Saç   Kesimi'); await s.click('#i-kaydet');
+  await s.waitForSelector('#sayfa:not(.acik)', { state: 'attached' });
+  denet((await kayit(s)).islemler[0].ad === 'Saç Kesimi', 'işlem: addaki fazla boşluklar teke iner');
+  await s.click('[data-sekme="ist"]');
+  const satir = s.locator('.dagilim-satir', { hasText: 'Saç Kesimi' });
+  denet(await satir.count() === 1 && (await satir.innerText()).includes(sacOnce + ' kişi') && await s.locator('.dagilim-satir', { hasText: /^Saç\s*\d/ }).count() === 0, 'işlem: yeniden adlandırınca istatistik bölünmez');
+  denet(await satir.locator('.dagilim-iz div').evaluate(e => getComputedStyle(e).backgroundColor) === 'rgb(47, 111, 222)', 'işlem: yeniden adlandırılan işlem rengini korur');
+
+  await s.click('[data-tur="gun"]');
+  const once = Number(await s.locator('#ist-kisi').innerText());
+  await s.clock.fastForward('03:00:00');
+  denet(Number(await s.locator('#ist-kisi').innerText()) === bekle('gun', '2026-11-21').kisi + 0 || Number(await s.locator('#ist-kisi').innerText()) > once, 'istatistik: ekran açıkken saat ilerleyince sayı güncellenir');
+  await s.click('[data-tur="ay"]'); await s.click('#ist-sonraki');
+  const gelecek = await s.locator('#govde').innerText();
+  denet(gelecek.includes('henüz başlamadı') && !/\d+ az\b/.test(gelecek) && !gelecek.includes('kayıt yok'), 'istatistik: gelecek dönemde yanıltıcı karşılaştırma yok');
+  await s.click('#ist-onceki'); await s.click('[data-tur="hafta"]'); await s.click('#ist-sonraki'); // 23–29 Kasım
+  denet((await s.locator('#ist-etiket').innerText()) === '23–29 Kasım 2026' && /\d+ randevu yazılı/.test(await s.locator('#ist-fark').innerText()), 'istatistik: gelecek haftadaki yazılı randevu sayısı gösterilir');
+  await cek(s, '27-ist-gelecek');
+  await baglam.close();
+}
+{
+  // "Geldi" saati gelmeden işaretlenirse sayılır; fiyat yazımı
+  const veri = BR.varsayilanVeri();
+  veri.islemler[0].fiyat = 99.9;
+  veri.randevular.push({ id: 'g', tarih: '2026-11-21', saat: '18:00', sure: 30, ad: 'Erken Gelen', tel: '', islemId: 'sac', islemAd: 'Saç', fiyat: 99.9, durum: 'bekliyor', not: '' });
+  const { baglam, s } = await ac('light', JSON.stringify(veri));
+  await s.locator('.rnd', { hasText: 'Erken Gelen' }).click();
+  denet((await s.locator('.bilgi').innerText()).includes('99,90 ₺'), 'fiyat: kuruşlu fiyat iki haneli gösterilir');
+  await s.click('[data-durum="geldi"]');
+  await s.click('#a-duzenle'); await s.waitForSelector('#sayfa.acik #f-ad');
+  denet(await s.locator('#f-fiyat').inputValue() === '99,9', 'fiyat: düzenleme alanında virgülle yazılır');
+  await s.click('#f-kaydet'); await s.waitForSelector('#sayfa:not(.acik)', { state: 'attached' });
+  denet((await kayit(s)).randevular[0].fiyat === 99.9, 'fiyat: dokunmadan kaydedince değişmez');
+  await s.click('[data-sekme="ist"]'); await s.click('[data-tur="gun"]');
+  denet((await s.locator('#ist-kisi').innerText()) === '1' && (await s.locator('#ist-ciro').innerText()) === '99,90 ₺', 'istatistik: saati gelmeden "Geldi" işaretlenen sayılır');
+  // dükkân adı yazarken kaydedilir
+  await s.click('[data-sekme="ayar"]');
+  await s.fill('#a-dukkan', 'Yazarken Kaydet');
+  denet((await kayit(s)).ayar.dukkan === 'Yazarken Kaydet' && (await s.locator('#baslik-dukkan').innerText()) === 'Yazarken Kaydet', 'ayar: dükkân adı yazılırken kaydedilir');
+  // kayıt başarısız olursa sessiz kalmaz, yedek yükleme yarım kalmaz
+  await s.evaluate(() => { Storage.prototype.setItem = () => { throw new DOMException('dolu', 'QuotaExceededError'); }; });
+  await s.click('[data-sekme="gun"]');
+  await s.locator('.rnd', { hasText: 'Erken Gelen' }).click();
+  await s.click('[data-durum="gelmedi"]');
+  denet(await s.locator('#bildirim.acik').count() === 1 && (await s.locator('#bildirim').innerText()).includes('Kaydedilemedi'), 'depo: durum değişikliği kaydedilemezse uyarı görünür');
+  await s.click('#sayfa-kapat');
+  await s.click('[data-sekme="ayar"]');
+  const kucuk = BR.varsayilanVeri(); kucuk.ayar.dukkan = 'Yüklenemeyen';
+  await s.setInputFiles('#yedek-dosya', { name: 'y.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(kucuk)) });
+  await s.waitForSelector('#sayfa.acik #yukle-evet');
+  await s.click('#yukle-evet');
+  await s.waitForSelector('#sayfa:not(.acik)', { state: 'attached' });
+  denet((await s.locator('#baslik-dukkan').innerText()) === 'Yazarken Kaydet' && (await s.locator('#bildirim').innerText()).includes('değiştirilmedi'), 'depo: yedek kaydedilemezse eski veri ekranda kalır');
+  await baglam.close();
+}
+{
+  const { baglam, s } = await ac('light');
+  await s.click('[data-sekme="ayar"]');
+  const kucuk = BR.varsayilanVeri();
+  await s.setInputFiles('#yedek-dosya', { name: 'y.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(kucuk)) });
+  await s.waitForSelector('#sayfa.acik #yukle-evet');
+  denet((await s.locator('#sayfa .metin').innerText()).includes('örnek'), 'yedek: örnek veriler açıkken onay yazısı örnek verilerden söz eder');
+  await baglam.close();
+}
+
+{
+  // telefon otomatik doldurma, saat seçenekleri, perde, çift dokunuş
+  const veri = BR.varsayilanVeri();
+  const m = (id, ad, tel, tarih) => ({ id, tarih, saat: '10:00', sure: 30, ad, tel, islemId: 'sac', islemAd: 'Saç', fiyat: null, durum: 'bekliyor', not: '' });
+  veri.randevular.push(m('a', 'Ahmet', '0532 111 11 11', '2026-11-10'), m('b', 'Ahmet Kaya', '0544 222 22 22', '2026-11-11'));
+  const { baglam, s } = await ac('light', JSON.stringify(veri));
+  // sayfa açıldıktan hemen sonraki dokunuşlar bilerek yok sayılır; insan hızında bekle
+  const dokun = async (sec, kez, ara) => { await s.waitForTimeout(500); const k = await s.locator(sec).first().boundingBox(); for (let i = 0; i < kez; i++) { await s.mouse.click(k.x + k.width / 2, k.y + k.height / 2); if (i < kez - 1) await s.waitForTimeout(ara); } };
+  await s.click('#fab'); await s.waitForSelector('#sayfa.acik #f-ad');
+  await s.fill('#f-ad', 'Ahmet');
+  denet(await s.locator('#f-tel').inputValue() === '0532 111 11 11', 'telefon: tam eşleşen müşterinin telefonu gelir');
+  await s.fill('#f-ad', 'Ahmet Kaya');
+  denet(await s.locator('#f-tel').inputValue() === '0544 222 22 22', 'telefon: isim uzayınca doğru müşterinin telefonuna döner');
+  await s.fill('#f-ad', 'Ahmet Demir');
+  denet(await s.locator('#f-tel').inputValue() === '', 'telefon: yeni bir isimde otomatik gelen telefon silinir');
+  await s.fill('#f-tel', '0555 000'); await s.fill('#f-ad', 'Ahmet');
+  denet(await s.locator('#f-tel').inputValue() === '0555 000', 'telefon: elle yazılan telefon değiştirilmez');
+  const secenek = await s.locator('#f-saat option').allInnerTexts();
+  denet(secenek.includes('07:00') && secenek.includes('22:30') && secenek.includes('09:00'), 'form: çalışma saati dışı da seçilebilir');
+  denet(await s.locator('#f-tarih').getAttribute('min') === '2000-01-01' && await s.locator('#f-tarih').getAttribute('max') === '2099-12-31', 'form: tarih alanında yıl sınırı var');
+  await s.waitForTimeout(450); await s.mouse.click(195, 20); await s.waitForTimeout(450);
+  denet(await s.locator('#sayfa.acik #f-ad').count() === 1, 'form: perdeye dokunmak yarım formu kapatmaz');
+  await s.click('#sayfa-kapat'); await s.waitForSelector('#sayfa:not(.acik)', { state: 'attached' });
+
+  await s.locator('.dilim.bos[data-saat="16:00"]').click(); await s.waitForSelector('#sayfa.acik #f-ad');
+  await s.fill('#f-ad', 'Çift Dokunuş'); await s.locator('#f-ad').blur();
+  await dokun('#f-kaydet', 2, 250);
+  await s.waitForSelector('#sayfa:not(.acik)', { state: 'attached' }); await s.waitForTimeout(500);
+  denet(await s.locator('#sekmeler [data-sekme="gun"]').getAttribute('aria-current') === 'page' && (await kayit(s)).randevular.filter(r => r.ad === 'Çift Dokunuş').length === 1, 'çift dokunuş: Kaydet\'e iki kez basmak sekme değiştirmez, tek kayıt oluşur');
+  await s.click('#fab'); await s.waitForSelector('#sayfa.acik #f-ad');
+  await s.fill('#f-ad', 'Çakışan'); await s.selectOption('#f-saat', '16:00'); await s.locator('#f-ad').blur();
+  await dokun('#f-kaydet', 2, 150);
+  await s.waitForTimeout(300);
+  denet(await s.locator('#f-cakisma').isVisible() && !(await kayit(s)).randevular.some(r => r.ad === 'Çakışan'), 'çift dokunuş: çakışma uyarısı okunmadan kaydedilmez');
+  await s.waitForTimeout(700); await dokun('#f-kaydet', 1, 0);
+  await s.waitForSelector('#sayfa:not(.acik)', { state: 'attached' }); await s.waitForTimeout(500);
+  denet((await kayit(s)).randevular.filter(r => r.ad === 'Çakışan').length === 1, 'çift dokunuş: uyarıdan sonra bilinçli dokunuş kaydeder');
+  await dokun('.rnd', 2, 150); await s.waitForTimeout(500);
+  denet((await kayit(s)).randevular.every(r => r.durum === 'bekliyor'), 'çift dokunuş: randevuya iki kez dokunmak durumunu değiştirmez');
+  await s.click('#sayfa-kapat');
+  // yeni kaydedilen randevu ekranda görünür
+  await s.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+  await s.click('#fab'); await s.waitForSelector('#sayfa.acik #f-ad');
+  await s.fill('#f-ad', 'Sabah Erken'); await s.fill('#f-tarih', '2026-11-23'); await s.selectOption('#f-saat', '09:00'); await s.click('#f-kaydet');
+  await s.waitForSelector('#sayfa:not(.acik)', { state: 'attached' }); await s.waitForTimeout(400);
+  const kutu = await s.locator('.rnd', { hasText: 'Sabah Erken' }).boundingBox();
+  denet(kutu && kutu.y > 150 && kutu.y + kutu.height < 780, 'form: yeni kaydedilen randevu ekrana kaydırılır');
+  await baglam.close();
+}
+{
+  // "+ Randevu" geçmiş saat önermez
+  const a = await ac('light', JSON.stringify(BR.varsayilanVeri()), false, null, '2026-11-21T21:10:00+03:00');
+  await a.s.click('#fab'); await a.s.waitForSelector('#sayfa.acik #f-ad');
+  denet(await a.s.locator('#f-tarih').inputValue() === '2026-11-23' && await a.s.locator('#f-saat').inputValue() === '09:00', 'form: kapanıştan sonra "+ Randevu" bir sonraki açık günü önerir');
+  await a.baglam.close();
+  const b = await ac('light');
+  await b.s.click('#fab'); await b.s.waitForSelector('#sayfa.acik #f-ad');
+  denet(await b.s.locator('#f-tarih').inputValue() === '2026-11-21' && await b.s.locator('#f-saat').inputValue() === '14:30', 'form: gün içinde "+ Randevu" şimdiden sonraki ilk boş saati önerir');
+  await b.s.click('#sayfa-kapat');
+  // örnek kayıtlar ve metinler
+  denet(await b.s.locator('#ornek-serit').isVisible() && (await b.s.locator('#ornek-serit').boundingBox()).y < 400, 'örnek: açıklama şeridi ilk açılışta ekranda');
+  denet((await b.s.locator('#temiz-basla').innerText()) === 'Örnekleri sil', 'metin: örnekleri silme düğmesi her yerde aynı adı taşır');
+  await b.s.locator('.rnd').first().click(); await b.s.waitForSelector('#sayfa.acik');
+  denet(await b.s.locator('#a-ara').count() === 0 && await b.s.locator('#a-wa').count() === 0, 'örnek: örnek kayıtlarda arama ve WhatsApp bağlantısı yok');
+  await b.s.click('#sayfa-kapat');
+  denet(await b.s.locator('meta[name="description"]').count() === 1 && await b.s.locator('meta[name="color-scheme"]').count() === 1, 'sayfa: açıklama ve renk şeması etiketleri var');
+  await b.s.click('[data-sekme="ayar"]');
+  denet((await b.s.locator('#ornek-sil').innerText()) === 'Örnekleri sil', 'metin: ayarlardaki düğme de "Örnekleri sil"');
+  await b.baglam.close();
+  const c = await ac('light', undefined, false, null, '2026-11-21T11:00:00+03:00');
+  denet(await c.s.evaluate(() => document.querySelector('.simdi').nextElementSibling.querySelector('.saat').textContent) === '11:00', 'gün: tam saat başında şimdi çizgisi o saatin üstünde durur');
+  await c.baglam.close();
+}
+{
+  // Pazar günü açılan demo boş görünmez
+  const { baglam, s } = await ac('light', undefined, false, null, '2026-11-22T12:00:00+03:00');
+  denet((await s.locator('#baslik-tarih').innerText()).includes('23 Kasım') && await s.locator('.rnd').count() >= 3, 'örnek: kapalı günde açılan demo ilk açık günü gösterir');
+  denet((await s.locator('#ornek-serit').innerText()).includes('kapalı'), 'örnek: neden başka günün gösterildiği yazılır');
+  await cek(s, '28-demo-pazar');
+  await baglam.close();
+}
+{
+  // demo donmaz: bir değişiklikten günler sonra açılınca örnekler bugüne göre yenilenir, kullanıcının kaydı kalır
+  const a = await ac('light');
+  await a.s.locator('.dilim.bos').first().click(); await a.s.waitForSelector('#sayfa.acik #f-ad');
+  await a.s.fill('#f-ad', 'Benim Müşterim'); await a.s.click('#f-kaydet'); await a.s.waitForSelector('#sayfa:not(.acik)', { state: 'attached' });
+  const depo = await a.s.evaluate(() => localStorage.getItem('berber-v1'));
+  await a.baglam.close();
+  const { baglam, s } = await ac('light', depo, false, null, '2026-11-30T10:00:00+03:00');
+  denet((await s.locator('#baslik-tarih').innerText()).includes('30 Kasım') && await s.locator('.rnd').count() >= 6, 'örnek: günler sonra açılan demo yine dolu');
+  await s.fill('#tarih-sec', '2026-11-21');
+  denet(await s.locator('.rnd', { hasText: 'Benim Müşterim' }).count() === 1, 'örnek: yenilenirken kullanıcının kendi randevusu korunur');
+  await baglam.close();
+}
+{
+  // iki pencere: biri diğerinin kaydını ezmez
+  const { baglam, s: A } = await ac('light', JSON.stringify(BR.varsayilanVeri()));
+  const B = await baglam.newPage();
+  await B.clock.install({ time: new Date('2026-11-21T14:25:00+03:00') });
+  await B.goto(adres); await B.waitForSelector('.dilim');
+  const ekle = async (sayfa, ad, saat) => { await sayfa.locator(`.dilim.bos[data-saat="${saat}"]`).click(); await sayfa.waitForSelector('#sayfa.acik #f-ad'); await sayfa.fill('#f-ad', ad); await sayfa.click('#f-kaydet'); await sayfa.waitForSelector('#sayfa:not(.acik)', { state: 'attached' }); };
+  await ekle(A, 'A Penceresi', '15:00');
+  await B.waitForSelector('.rnd');
+  denet(await B.locator('.rnd', { hasText: 'A Penceresi' }).count() === 1, 'iki pencere: diğer pencerede yapılan kayıt bu pencerede de görünür');
+  await ekle(B, 'B Penceresi', '16:00');
+  const adlar = (await kayit(B)).randevular.map(r => r.ad).sort();
+  denet(adlar.length === 2 && adlar[0] === 'A Penceresi' && adlar[1] === 'B Penceresi', 'iki pencere: iki pencerenin kayıtları da saklanır');
+  await baglam.close();
+}
+{
+  // bir dosya yüklenemezse boş ekran yerine açıklama
+  const baglam = await tarayici.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: 'block' });
+  const s = await baglam.newPage();
+  await s.route('**/hesap.js', r => r.abort());
+  await s.goto(adres);
+  await s.waitForSelector('#yuklenemedi', { timeout: 5000 }).catch(() => {});
+  denet(await s.locator('#yuklenemedi').count() === 1 && !(await s.locator('#fab').isVisible()) && !(await s.locator('#sekmeler').isVisible()), 'açılış: dosya yüklenemezse açıklama gösterilir, ölü düğmeler görünmez');
+  await baglam.close();
+}
+{
+  // çevrimdışı kopya: adres parametreli açılışlar tek kayıt altında tutulur
+  const { baglam, s } = await ac('light', undefined, true);
+  await s.evaluate(() => Promise.race([navigator.serviceWorker.ready, new Promise(r => setTimeout(r, 6000))]));
+  await s.goto(adres + '?fbclid=WA1'); await s.waitForSelector('.rnd'); await s.waitForTimeout(600);
+  const anahtarlar = await s.evaluate(async () => { const ad = (await caches.keys()).find(k => k.startsWith('berber-')); return [ad, ...(await (await caches.open(ad)).keys()).map(r => r.url)]; });
+  denet(anahtarlar[0] === 'berber-v3' && !anahtarlar.some(u => u.includes('?')), 'çevrimdışı: önbellekte parametreli adres tutulmaz');
+  await baglam.setOffline(true); hatalar.length = 0;
+  await s.goto(adres + '?fbclid=WA2').catch(() => {});
+  denet(await s.waitForSelector('.rnd', { timeout: 6000 }).then(() => true, () => false), 'çevrimdışı: parametreli bağlantı internetsiz de açılır');
+  hatalar.length = 0;
   await baglam.close();
 }
 

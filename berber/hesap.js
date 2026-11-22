@@ -37,8 +37,10 @@
   // simdiDk verilirse (bugün için) yalnızca henüz bitmemiş dilimler boş sayılır.
   BR.gunOzeti = (ayar, randevular, tarih, simdiDk) => {
     const gun = randevular.filter(r => r.tarih === tarih), dolu = gun.filter(aktif);
+    const ac = BR.dakika(ayar.acilis), kap = BR.dakika(ayar.kapanis);
     const bosDilim = BR.dilimler(ayar, gun).filter(saat => {
       const b = BR.dakika(saat), s = b + ayar.adim;
+      if (b < ac || b >= kap) return false; // saat dışı randevu için uzayan dilimler boş zaman sayılmaz
       if (simdiDk != null && s <= simdiDk) return false;
       return !dolu.some(r => bas(r) < s && son(r) > b);
     }).length;
@@ -60,9 +62,10 @@
   BR.GUN_KISA = ['Pt', 'Sa', 'Ça', 'Pe', 'Cu', 'Ct', 'Pz'];
   BR.ptSira = d => (d.getDay() + 6) % 7;
 
-  // Tıraş edildi sayılır mı: başlangıcı geçmiş ve gelmedi/iptal işaretlenmemiş.
+  // Tıraş edildi sayılır mı: "Geldi" işaretli, ya da başlangıcı geçmiş ve gelmedi/iptal işaretlenmemiş.
   BR.sayilir = (r, simdi) => {
     if (r.durum === 'gelmedi' || r.durum === 'iptal') return false;
+    if (r.durum === 'geldi') return true;
     const d = BR.tarihOku(r.tarih); d.setMinutes(BR.dakika(r.saat));
     return d <= simdi;
   };
@@ -77,7 +80,8 @@
       const bd = BR.tarihOku(b), sd = BR.tarihOku(s);
       const etiket = bd.getMonth() === sd.getMonth()
         ? bd.getDate() + '–' + sd.getDate() + ' ' + BR.AYLAR[sd.getMonth()] + ' ' + sd.getFullYear()
-        : bd.getDate() + ' ' + BR.AYLAR[bd.getMonth()] + ' – ' + sd.getDate() + ' ' + BR.AYLAR[sd.getMonth()] + ' ' + sd.getFullYear();
+        : bd.getDate() + ' ' + BR.AYLAR[bd.getMonth()] + (bd.getFullYear() === sd.getFullYear() ? '' : ' ' + bd.getFullYear()) +
+          ' – ' + sd.getDate() + ' ' + BR.AYLAR[sd.getMonth()] + ' ' + sd.getFullYear();
       return { bas: b, son: s, etiket };
     }
     if (tur === 'ay') return { bas: BR.tarihYaz(new Date(y, a, 1)), son: BR.tarihYaz(new Date(y, a, aySonu(y, a))), etiket: BR.AYLAR[a] + ' ' + y };
@@ -97,7 +101,14 @@
     const dn = BR.donem(tur, tarih), icinde = r => r.tarih >= dn.bas && r.tarih <= dn.son;
     const hepsi = randevular.filter(icinde), sayilan = hepsi.filter(r => BR.sayilir(r, simdi));
     const onceki = BR.donem(tur, BR.donemKaydir(tur, tarih, -1));
-    const oncekiKisi = randevular.filter(r => r.tarih >= onceki.bas && r.tarih <= onceki.son && BR.sayilir(r, simdi)).length;
+    const oncekiler = randevular.filter(r => r.tarih >= onceki.bas && r.tarih <= onceki.son && BR.sayilir(r, simdi));
+    const oncekiKisi = oncekiler.length;
+    // Süren dönem, önceki dönemin aynı noktasına kadar olan kısmıyla karşılaştırılır (ayın 21'i ile geçen ayın 21'i).
+    const bg = BR.tarihYaz(simdi), basladi = dn.bas <= bg, suruyor = basladi && dn.son >= bg;
+    const an = r => { const d = BR.tarihOku(r.tarih); d.setMinutes(BR.dakika(r.saat)); return d; };
+    const gecen = simdi - BR.tarihOku(dn.bas), oncekiBas = BR.tarihOku(onceki.bas);
+    const oncekiAyni = suruyor ? oncekiler.filter(r => an(r) - oncekiBas <= gecen).length : oncekiKisi;
+    const yazili = hepsi.filter(r => r.durum !== 'gelmedi' && r.durum !== 'iptal' && !BR.sayilir(r, simdi)).length;
 
     // seri
     let seri;
@@ -105,7 +116,11 @@
     if (tur === 'gun') {
       const m = new Map();
       for (const r of sayilan) m.set(saatBasi(r), (m.get(saatBasi(r)) || 0) + 1);
-      seri = [...m.keys()].sort().map(k => ({ etiket: k, kisi: m.get(k) }));
+      const saatler = [...m.keys()].sort();
+      seri = [];
+      if (saatler.length) for (let s = Number(saatler[0].slice(0, 2)); s <= Number(saatler[saatler.length - 1].slice(0, 2)); s++) {
+        const k = iki(s) + ':00'; seri.push({ etiket: k, kisi: m.get(k) || 0 });
+      }
     } else if (tur === 'hafta') {
       seri = BR.GUN_KISA.map(e => ({ etiket: e, kisi: 0 }));
       for (const r of sayilan) seri[BR.ptSira(BR.tarihOku(r.tarih))].kisi++;
@@ -123,7 +138,11 @@
     for (const r of sayilan) { const ad = r.islemAd || 'Diğer'; im.set(ad, (im.get(ad) || 0) + 1); }
     const islemler = [...im.entries()]
       .sort((x, y) => y[1] - x[1] || x[0].localeCompare(y[0], 'tr'))
-      .map(([ad, kisi]) => ({ ad, kisi, yuzde: Math.round(kisi * 100 / sayilan.length) }));
+      .map(([ad, kisi]) => ({ ad, kisi, yuzde: Math.floor(kisi * 100 / sayilan.length), kalan: (kisi * 100 / sayilan.length) % 1 }));
+    // Toplam 100 etsin: eksik puanlar en büyük kesirli kısımlara dağıtılır.
+    let eksik = 100 - islemler.reduce((t, x) => t + x.yuzde, 0);
+    for (const x of islemler.slice().sort((a, b) => b.kalan - a.kalan)) { if (eksik-- > 0 && islemler.length) x.yuzde++; }
+    for (const x of islemler) delete x.kalan;
 
     // en yoğun gün ve saat
     let enYogunGun = null, enYogunSaat = null;
@@ -147,7 +166,7 @@
       ciroVar: fiyatli.length > 0,
       gelmedi: hepsi.filter(r => r.durum === 'gelmedi').length,
       iptal: hepsi.filter(r => r.durum === 'iptal').length,
-      oncekiKisi, seri, islemler, enYogunGun, enYogunSaat,
+      oncekiKisi, oncekiAyni, suruyor, basladi, yazili, seri, islemler, enYogunGun, enYogunSaat,
     };
   };
 
@@ -158,7 +177,7 @@
   BR.RENKLER = ['#2F6FDE', '#D9822B', '#1F9D7A', '#8B5CF6', '#D6457A', '#2AA7C9', '#7A8B2E', '#B4532A'];
   const ISLEMLER = [['sac', 'Saç', 30], ['sakal', 'Sakal', 15], ['sacsakal', 'Saç + Sakal', 45], ['cocuk', 'Çocuk Tıraşı', 30],
     ['agda', 'Ağda', 15], ['fon', 'Yıkama + Fön', 15], ['cilt', 'Cilt Bakımı', 30]];
-  const VARSAYILAN_AYAR = () => ({ dukkan: '', acilis: '09:00', kapanis: '21:00', adim: 30, kapali: [0], ornek: false });
+  const VARSAYILAN_AYAR = () => ({ dukkan: '', acilis: '09:00', kapanis: '21:00', adim: 30, kapali: [0], ornek: false, ornekGun: '' });
 
   BR.varsayilanVeri = () => ({
     ayar: VARSAYILAN_AYAR(),
@@ -170,8 +189,10 @@
   const DURUMLAR = ['bekliyor', 'geldi', 'gelmedi', 'iptal'];
   const nesne = x => x !== null && typeof x === 'object' && !Array.isArray(x);
   const metin = x => (typeof x === 'string' ? x : x == null ? '' : String(x));
-  const fiyatOku = x => (x === null || x === undefined || x === '' || !isFinite(Number(x)) || Number(x) < 0 ? null : Number(x));
-  const tarihGecerli = s => TARIH_RE.test(s) && BR.tarihYaz(BR.tarihOku(s)) === s;
+  const fiyatOku = x => (x === null || x === undefined || x === '' || !isFinite(Number(x)) || Number(x) < 0 || Number(x) > 1e7 ? null : Number(x));
+  const sureOku = x => (Number.isFinite(x) && Math.round(x) >= 1 && x <= 480 ? Math.round(x) : 30);
+  const tekBosluk = x => metin(x).replace(/\s+/g, ' ').trim();
+  const tarihGecerli = s => typeof s === 'string' && TARIH_RE.test(s) && BR.tarihYaz(BR.tarihOku(s)) === s;
 
   // Depodan ya da yedek dosyasından gelen veriyi denetler; tanınmıyorsa null, tanınıyorsa onarılmış kopya döner.
   BR.dogrula = x => {
@@ -183,18 +204,21 @@
       adim: a.adim === 15 || a.adim === 30 ? a.adim : v.adim,
       kapali: Array.isArray(a.kapali) ? [...new Set(a.kapali.filter(n => Number.isInteger(n) && n >= 0 && n <= 6))] : v.kapali,
       ornek: a.ornek === true,
+      ornekGun: tarihGecerli(a.ornekGun) ? a.ornekGun : '', // örnek verinin hangi güne göre üretildiği
     };
     if (SAAT_RE.test(a.acilis) && SAAT_RE.test(a.kapanis) && BR.dakika(a.kapanis) > BR.dakika(a.acilis)) { ayar.acilis = a.acilis; ayar.kapanis = a.kapanis; }
-    const islemler = x.islemler.filter(i => nesne(i) && metin(i.ad).trim()).map((i, n) => ({
-      id: metin(i.id) || BR.yeniId(), ad: metin(i.ad).trim().slice(0, 40),
-      sure: Number.isFinite(i.sure) && i.sure > 0 && i.sure <= 480 ? Math.round(i.sure) : 30,
+    const islemler = x.islemler.filter(i => nesne(i) && tekBosluk(i.ad)).map((i, n) => ({
+      id: metin(i.id) || BR.yeniId(), ad: tekBosluk(i.ad).slice(0, 40),
+      sure: sureOku(i.sure),
       fiyat: fiyatOku(i.fiyat), renk: /^#[0-9a-fA-F]{6}$/.test(i.renk) ? i.renk : BR.RENKLER[n % BR.RENKLER.length],
       sira: Number.isFinite(i.sira) ? i.sira : n, silindi: i.silindi === true,
     }));
-    const randevular = x.randevular.filter(r => nesne(r) && tarihGecerli(metin(r.tarih)) && SAAT_RE.test(metin(r.saat))).map(r => ({
-      id: metin(r.id) || BR.yeniId(), tarih: r.tarih, saat: r.saat,
-      sure: Number.isFinite(r.sure) && r.sure > 0 && r.sure <= 480 ? Math.round(r.sure) : 30,
-      ad: metin(r.ad).slice(0, 60), tel: metin(r.tel).slice(0, 20),
+    const idler = new Set();
+    const tekilId = id => { let y = metin(id) || BR.yeniId(); while (idler.has(y)) y = BR.yeniId(); idler.add(y); return y; }; // aynı id iki kayıtta olmasın
+    const randevular = x.randevular.filter(r => nesne(r) && tarihGecerli(r.tarih) && typeof r.saat === 'string' && SAAT_RE.test(r.saat)).map(r => ({
+      id: tekilId(r.id), tarih: r.tarih, saat: r.saat,
+      sure: sureOku(r.sure),
+      ad: tekBosluk(r.ad).slice(0, 60), tel: metin(r.tel).slice(0, 20),
       islemId: metin(r.islemId), islemAd: metin(r.islemAd).slice(0, 40), fiyat: fiyatOku(r.fiyat),
       durum: DURUMLAR.includes(r.durum) ? r.durum : 'bekliyor', not: metin(r.not).slice(0, 200),
       ...(r.ornek === true ? { ornek: true } : {}), // demo verisinden gelen randevu; "temiz başla" yalnızca bunları siler
@@ -208,7 +232,8 @@
     const aranan = tr(yazilan);
     if (!aranan) return [];
     const kisiler = new Map();
-    const sirali = randevular.filter(r => tr(r.ad).includes(aranan))
+    const uyar = ad => { const a = tr(ad); return a.startsWith(aranan) || a.includes(' ' + aranan); }; // sözcük başından
+    const sirali = randevular.filter(r => uyar(r.ad))
       .sort((x, y) => (y.tarih + y.saat).localeCompare(x.tarih + x.saat));
     for (const r of sirali) {
       const k = tr(r.ad), kisi = kisiler.get(k);
@@ -217,6 +242,10 @@
     }
     return [...kisiler.values()].slice(0, 5);
   };
+
+  // Parayı gösterir: 450 → "450 ₺", 99.9 → "99,90 ₺". Yazı alanına koymak için: 99.9 → "99,9" (fiyatCoz geri okur).
+  BR.paraYaz = n => new Intl.NumberFormat('tr-TR', Number.isInteger(n) ? {} : { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n) + ' ₺';
+  BR.fiyatYaz = n => (n == null ? '' : String(n).replace('.', ','));
 
   // Elle yazılan fiyatı sayıya çevirir: "1.500" → 1500, "99,90" → 99.9. Boşsa null, anlaşılmazsa NaN.
   BR.fiyatCoz = yazi => {
