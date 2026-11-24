@@ -853,6 +853,135 @@ const konus = (s, yazi, ara) => s.evaluate(([y, a]) => window.__ses.konus(y, a),
   await baglam.close();
 }
 
+/* ---------- giderler ---------- */
+{
+  const { baglam, s } = await ac('light');
+  denet(await s.locator('#sekmeler button').count() === 4, 'gider: alt çubukta dört sekme var');
+  await s.click('#sekmeler [data-sekme="gider"]'); await s.waitForSelector('#gider-toplam');
+  const ayToplam = ay => Math.round(ORNEK.giderler.filter(g => g.tarih.startsWith(ay)).reduce((t, g) => t + g.tutar, 0) * 100) / 100;
+  const kasim = ORNEK.giderler.filter(g => g.tarih.startsWith('2026-11'));
+  denet((await s.locator('#gider-ay').innerText()) === 'Kasım 2026' && (await s.locator('#gider-toplam').innerText()) === BR.paraYaz(ayToplam('2026-11')), 'gider: açılışta bu ayın toplamı');
+  denet(await s.locator('.gider').count() === kasim.length && kasim.length >= 5, 'gider: ayın giderleri listelenir');
+  denet(await s.locator('.sabit').count() === 2 && (await s.locator('.sabit').first().innerText()).includes('Her ayın 1’i'), 'gider: her ay tekrar edenler listelenir');
+  denet((await s.locator('.gider').first().boundingBox()).height >= 48 && (await s.locator('#gider-fab').boundingBox()).height >= 48, 'gider: satırlar ve düğme en az 48 px');
+  denet(!(await s.locator('#fab').isVisible()) && !(await s.locator('#mikrofon').isVisible()), 'gider: randevu düğmeleri bu sekmede görünmez');
+  await tasmaYok(s, 'giderler');
+  await cek(s, '29-gider');
+
+  await s.click('#gider-fab'); await s.waitForSelector('#sayfa.acik #gd-tutar');
+  denet(await s.locator('#gd-tarih').inputValue() === '2026-11-21', 'gider formu: tarih bugün gelir');
+  await s.click('#gd-kaydet');
+  denet(await s.locator('#gd-hata').isVisible() && await s.locator('#sayfa.acik').count() === 1, 'gider formu: tutarsız kaydedilmez');
+  await s.fill('#gd-tutar', '1.250');
+  denet(!(await s.locator('#gd-hata').isVisible()), 'gider formu: tutar yazılınca uyarı kalkar');
+  await s.click('.tur-sec[data-gtur="Vergi"]'); await s.click('.tur-sec[data-gtur="Malzeme"]'); await s.fill('#gd-not', '<i>Makas</i>');
+  denet(await s.locator('.tur-sec[aria-pressed="true"]').count() === 1 && await s.locator('.tur-sec[data-gtur="Malzeme"]').getAttribute('aria-pressed') === 'true', 'gider formu: tür seçimi tek ve doğru');
+  await cek(s, '30-gider-form');
+  await s.click('#gd-kaydet'); await s.waitForSelector('#sayfa:not(.acik)', { state: 'attached' });
+  const yeni = (await kayit(s)).giderler.find(g => g.not === '<i>Makas</i>');
+  denet(yeni && yeni.tutar === 1250 && yeni.tur === 'Malzeme' && yeni.tarih === '2026-11-21' && !yeni.ornek && !yeni.sabitId, 'gider formu: gider kaydedilir ("1.250" bin iki yüz elli)');
+  denet(await s.locator('.gider', { hasText: '<i>Makas</i>' }).count() === 1 && await s.locator('.gider i').count() === 0, 'gider: not düz metin olarak görünür');
+  denet((await s.locator('#gider-toplam').innerText()) === BR.paraYaz(ayToplam('2026-11') + 1250), 'gider: toplam güncellenir');
+
+  await s.locator('.gider', { hasText: '<i>Makas</i>' }).click(); await s.waitForSelector('#sayfa.acik #gd-tutar');
+  denet(await s.locator('#gd-tutar').inputValue() === '1250' && await s.locator('.tur-sec[data-gtur="Malzeme"]').getAttribute('aria-pressed') === 'true' && await s.locator('#gd-tekrar').count() === 0, 'gider formu: düzenleme mevcut bilgilerle açılır');
+  await s.fill('#gd-tutar', '1.300,50'); await s.click('#gd-kaydet'); await s.waitForSelector('#sayfa:not(.acik)', { state: 'attached' });
+  denet((await kayit(s)).giderler.filter(g => g.not === '<i>Makas</i>').length === 1 && (await kayit(s)).giderler.find(g => g.not === '<i>Makas</i>').tutar === 1300.5 && (await s.locator('.gider', { hasText: 'Makas' }).innerText()).includes('1.300,50 ₺'), 'gider formu: düzenleme aynı kaydı günceller');
+  // yedekte giderler de var
+  const adet = (await kayit(s)).giderler.length;
+  await s.click('#sekmeler [data-sekme="ayar"]');
+  const [inen] = await Promise.all([s.waitForEvent('download'), s.click('#yedek-indir')]);
+  const yedek = JSON.parse(await readFile(await inen.path(), 'utf8'));
+  denet(yedek.giderler.length === adet && yedek.sabitGiderler.length === 2, 'yedek: giderler ve sabit giderler yedekte');
+  await s.click('#sekmeler [data-sekme="gider"]');
+  await s.locator('.gider', { hasText: 'Makas' }).click(); await s.click('#gd-sil'); await s.click('#gd-sil-evet');
+  await s.waitForSelector('#sayfa:not(.acik)', { state: 'attached' });
+  denet(!(await kayit(s)).giderler.some(g => g.not === '<i>Makas</i>') && await s.locator('.gider', { hasText: 'Makas' }).count() === 0, 'gider: silinen gider kalkar');
+
+  await s.click('#gider-onceki');
+  denet((await s.locator('#gider-ay').innerText()) === 'Ekim 2026' && (await s.locator('#gider-toplam').innerText()) === BR.paraYaz(ayToplam('2026-10')), 'gider: önceki aya geçilir');
+  await s.click('#gider-sonraki'); await s.click('#gider-sonraki');
+  denet((await s.locator('#gider-ay').innerText()) === 'Aralık 2026' && await s.locator('#gider-bos').isVisible() && await s.locator('.gider').count() === 0, 'gider: gider olmayan ayda açıklama çıkar');
+
+  // istatistikte kasa: ciro, gider, kalan
+  await s.click('#sekmeler [data-sekme="ist"]'); await s.waitForSelector('#ist-kisi');
+  const st = BR.istatistik(ORNEK.randevular, 'ay', '2026-11-21', SIMDI, ORNEK.giderler);
+  denet((await s.locator('#kasa-ciro').innerText()) === BR.paraYaz(st.ciro) && (await s.locator('#kasa-gider').innerText()) === BR.paraYaz(st.gider) && (await s.locator('#kasa-kalan').innerText()) === BR.paraYaz(st.ciro - st.gider), 'kasa: ciro, gider ve kalan hesapla aynı');
+  denet(await s.locator('.kasa-satir').count() === st.giderDagilim.length && (await s.locator('.kasa-satir').first().innerText()).includes(st.giderDagilim[0].ad), 'kasa: giderlerin türlere dağılımı');
+  denet(await s.locator('#kasa-not').count() === 0, 'kasa: bütün fiyatlar giriliyse uyarı yok');
+  await s.locator('#kasa-kalan').scrollIntoViewIfNeeded();
+  await tasmaYok(s, 'kasa');
+  await cek(s, '31-ist-kasa');
+  await s.click('[data-tur="yil"]');
+  const yl = BR.istatistik(ORNEK.randevular, 'yil', '2026-11-21', SIMDI, ORNEK.giderler);
+  denet((await s.locator('#kasa-kalan').innerText()) === BR.paraYaz(yl.ciro - yl.gider) && yl.ciro - yl.gider > 0, 'kasa: yıllık kalan hesapla aynı');
+  await baglam.close();
+}
+{
+  // her ay tekrarlanan gider
+  const { baglam, s } = await ac('light', JSON.stringify(BR.varsayilanVeri()));
+  await s.click('#sekmeler [data-sekme="gider"]'); await s.waitForSelector('#gider-toplam');
+  denet(await s.locator('#gider-bos').isVisible() && await s.locator('.sabit').count() === 0, 'gider: boş defterde açıklama çıkar');
+  await s.click('#sekmeler [data-sekme="ist"]');
+  denet(await s.locator('#kasa-gider').count() === 0, 'kasa: gider yoksa kasa bölümü görünmez');
+  await s.click('#sekmeler [data-sekme="gider"]');
+  await s.click('#gider-fab'); await s.waitForSelector('#sayfa.acik #gd-tutar');
+  await s.fill('#gd-tutar', '500'); await s.click('.tur-sec[data-gtur="Fatura"]'); await s.fill('#gd-tarih', '2026-11-10'); await s.fill('#gd-not', 'İnternet');
+  await s.click('#gd-tekrar');
+  denet(await s.locator('#gd-tekrar').getAttribute('aria-pressed') === 'true', 'gider formu: "Her ay tekrarla" açılır');
+  await s.click('#gd-kaydet'); await s.waitForSelector('#sayfa:not(.acik)', { state: 'attached' });
+  let k = await kayit(s);
+  denet(k.sabitGiderler.length === 1 && k.sabitGiderler[0].gun === 10 && k.sabitGiderler[0].tutar === 500 && k.sabitGiderler[0].tur === 'Fatura' && k.sabitGiderler[0].sonAy === '2026-11', 'tekrar: sabit gider oluşur');
+  denet(k.giderler.length === 1 && k.giderler[0].tarih === '2026-11-10' && k.giderler[0].sabitId === k.sabitGiderler[0].id, 'tekrar: bu ayın gideri de yazılır');
+  denet((await s.locator('.sabit').innerText()).includes('Her ayın 10’u') && (await s.locator('.sabit').innerText()).includes('500 ₺'), 'tekrar: listede gün ve tutar görünür');
+  await s.locator('.sabit').click(); await s.waitForSelector('#sayfa.acik #sb-tutar');
+  denet(await s.locator('#sb-tutar').inputValue() === '500' && await s.locator('#sb-gun').inputValue() === '10', 'tekrar: düzenleme mevcut bilgilerle açılır');
+  await s.fill('#sb-tutar', '700'); await s.click('#sb-kaydet'); await s.waitForSelector('#sayfa:not(.acik)', { state: 'attached' });
+  k = await kayit(s);
+  denet(k.sabitGiderler[0].tutar === 700 && k.giderler[0].tutar === 500, 'tekrar: tutar değişince yazılmış ay değişmez');
+  const depo = await s.evaluate(() => localStorage.getItem('berber-v1'));
+  await baglam.close();
+
+  const b = await ac('light', depo, false, null, '2027-01-15T10:00:00+03:00');
+  k = await kayit(b.s);
+  denet(k.giderler.length === 3 && k.giderler.map(g => g.tarih + ' ' + g.tutar).sort().join('|') === '2026-11-10 500|2026-12-10 700|2027-01-10 700' && k.sabitGiderler[0].sonAy === '2027-01', 'tekrar: iki ay sonra açılınca aradaki aylar yeni tutarla yazılır ve kaydedilir');
+  await b.s.click('#sekmeler [data-sekme="gider"]');
+  denet((await b.s.locator('#gider-ay').innerText()) === 'Ocak 2027' && await b.s.locator('.gider').count() === 1 && (await b.s.locator('.gider').innerText()).includes('her ay'), 'tekrar: yeni ayın gideri listede, "her ay" işaretiyle');
+  await b.s.locator('.sabit').click(); await b.s.click('#sb-sil'); await b.s.click('#sb-sil-evet');
+  await b.s.waitForSelector('#sayfa:not(.acik)', { state: 'attached' });
+  k = await kayit(b.s);
+  denet(k.sabitGiderler.length === 0 && k.giderler.length === 3, 'tekrar: sabit gider silinince yazılmış aylar kalır');
+  await b.baglam.close();
+}
+{
+  // gider alanı olmayan eski kayıt; fiyatı girilmemiş randevu uyarısı
+  const eski = { ayar: { dukkan: 'Eski Kayıt', kapali: [] }, islemler: BR.varsayilanVeri().islemler, randevular: [
+    { id: 'a', tarih: '2026-11-05', saat: '10:00', sure: 30, ad: 'Fiyatlı', tel: '', islemId: 'sac', islemAd: 'Saç', fiyat: 400, durum: 'bekliyor', not: '' },
+    { id: 'b', tarih: '2026-11-06', saat: '10:00', sure: 30, ad: 'Fiyatsız', tel: '', islemId: 'sac', islemAd: 'Saç', fiyat: null, durum: 'bekliyor', not: '' }] };
+  const { baglam, s } = await ac('dark', JSON.stringify(eski));
+  await s.click('#sekmeler [data-sekme="gider"]'); await s.waitForSelector('#gider-toplam');
+  denet(await s.locator('#gider-bos').isVisible() && (await s.locator('#gider-toplam').innerText()) === '0 ₺', 'gider: gider alanı olmayan eski kayıt sorunsuz açılır');
+  await s.click('#gider-fab'); await s.waitForSelector('#sayfa.acik #gd-tutar');
+  await s.fill('#gd-tutar', '150'); await s.click('#gd-kaydet'); await s.waitForSelector('#sayfa:not(.acik)', { state: 'attached' });
+  await cek(s, '32-gider-koyu');
+  await s.click('#sekmeler [data-sekme="ist"]'); await s.waitForSelector('#kasa-kalan');
+  denet((await s.locator('#kasa-kalan').innerText()) === '250 ₺' && (await s.locator('#kasa-not').innerText()).includes('1 randevunun fiyatı'), 'kasa: fiyatı girilmemiş randevu varsa bunu söyler');
+  await baglam.close();
+}
+{
+  // örnekleri sil: örnek giderler gider, kendi eklenen kalır
+  const { baglam, s } = await ac('light');
+  await s.click('#sekmeler [data-sekme="gider"]'); await s.waitForSelector('#gider-toplam');
+  await s.click('#gider-fab'); await s.waitForSelector('#sayfa.acik #gd-tutar');
+  await s.fill('#gd-tutar', '99,90'); await s.click('#gd-kaydet'); await s.waitForSelector('#sayfa:not(.acik)', { state: 'attached' });
+  await s.click('#sekmeler [data-sekme="ayar"]'); await s.click('#ornek-sil');
+  denet((await s.locator('#sayfa .metin').innerText()).includes('gider'), 'örnek: onay yazısı giderlerden de söz eder');
+  await s.click('#temiz-evet'); await s.waitForSelector('#sayfa:not(.acik)', { state: 'attached' });
+  const k = await kayit(s);
+  denet(k.giderler.length === 1 && k.giderler[0].tutar === 99.9 && k.sabitGiderler.length === 0, 'örnek: örnek giderler silinir, kendi eklenen kalır');
+  await baglam.close();
+}
+
 /* EK-DENETIMLER */
 
 await tarayici.close();

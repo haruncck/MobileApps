@@ -97,7 +97,7 @@
     return BR.tarihYaz(hedef);
   };
 
-  BR.istatistik = (randevular, tur, tarih, simdi) => {
+  BR.istatistik = (randevular, tur, tarih, simdi, giderler) => {
     const dn = BR.donem(tur, tarih), icinde = r => r.tarih >= dn.bas && r.tarih <= dn.son;
     const hepsi = randevular.filter(icinde), sayilan = hepsi.filter(r => BR.sayilir(r, simdi));
     const onceki = BR.donem(tur, BR.donemKaydir(tur, tarih, -1));
@@ -160,10 +160,21 @@
     }
 
     const fiyatli = sayilan.filter(r => r.fiyat != null);
+    // giderler: dönem içinde ve bugüne kadar olanlar
+    const gm = new Map();
+    for (const g of giderler || []) if (icinde(g) && g.tarih <= bg) gm.set(g.tur, (gm.get(g.tur) || 0) + g.tutar);
+    const gider = Math.round([...gm.values()].reduce((t, x) => t + x, 0) * 100) / 100;
+    const giderDagilim = [...gm.entries()].sort((x, y) => y[1] - x[1] || x[0].localeCompare(y[0], 'tr'))
+      .map(([ad, tutar]) => ({ ad, tutar: Math.round(tutar * 100) / 100, yuzde: Math.floor(tutar * 100 / gider), kalan: (tutar * 100 / gider) % 1 }));
+    let gEksik = 100 - giderDagilim.reduce((t, x) => t + x.yuzde, 0);
+    for (const x of giderDagilim.slice().sort((a, b) => b.kalan - a.kalan)) { if (gEksik-- > 0) x.yuzde++; }
+    for (const x of giderDagilim) delete x.kalan;
     return {
       kisi: sayilan.length,
       ciro: fiyatli.reduce((t, r) => t + Number(r.fiyat), 0),
       ciroVar: fiyatli.length > 0,
+      fiyatsiz: sayilan.length - fiyatli.length, // fiyatı girilmemiş randevular ciroya girmez
+      gider, giderDagilim,
       gelmedi: hepsi.filter(r => r.durum === 'gelmedi').length,
       iptal: hepsi.filter(r => r.durum === 'iptal').length,
       oncekiKisi, oncekiAyni, suruyor, basladi, yazili, seri, islemler, enYogunGun, enYogunSaat,
@@ -183,7 +194,33 @@
     ayar: VARSAYILAN_AYAR(),
     islemler: ISLEMLER.map(([id, ad, sure], i) => ({ id, ad, sure, fiyat: null, renk: BR.RENKLER[i], sira: i, silindi: false })),
     randevular: [],
+    giderler: [],       // { id, tarih, tutar, tur, not, sabitId? }
+    sabitGiderler: [],  // her ay kendiliğinden yazılanlar: { id, tur, tutar, gun, not, baslangic: 'YYYY-AA', sonAy: 'YYYY-AA' }
   });
+
+  /* ---------- giderler ---------- */
+  BR.GIDER_TURLERI = ['Kira', 'Fatura', 'Malzeme', 'Maaş', 'Vergi', 'Diğer'];
+  BR.GIDER_RENGI = { Kira: '#B4532A', Fatura: '#D9822B', Malzeme: '#1F9D7A', 'Maaş': '#2F6FDE', Vergi: '#8B5CF6', 'Diğer': '#8A94A6' };
+  const sonrakiAy = ay => { const [y, a] = ay.split('-').map(Number); return a === 12 ? (y + 1) + '-01' : y + '-' + iki(a + 1); };
+
+  // Sabit giderlerin vadesi gelmiş ayları için gider satırı yazar. Yazılan satır sıradan bir giderdir: sonradan
+  // düzeltilebilir ya da silinebilir, silinen yeniden yazılmaz. Sabit giderin tutarı değişirse yalnızca sonraki aylar etkilenir.
+  BR.sabitleriIsle = (veri, bugun) => {
+    const giderler = veri.giderler.slice(), buAy = bugun.slice(0, 7);
+    let eklenen = 0;
+    const sabitGiderler = veri.sabitGiderler.map(kaynak => {
+      const s = Object.assign({}, kaynak);
+      let ay = s.sonAy ? sonrakiAy(s.sonAy) : (s.baslangic || buAy);
+      for (let i = 0; i < 240 && ay <= buAy; i++, ay = sonrakiAy(ay)) {
+        const [y, a] = ay.split('-').map(Number), tarih = ay + '-' + iki(Math.min(s.gun, new Date(y, a, 0).getDate()));
+        if (tarih > bugun) break;
+        giderler.push(Object.assign({ id: BR.yeniId(), tarih, tutar: s.tutar, tur: s.tur, not: s.not || '', sabitId: s.id }, s.ornek ? { ornek: true } : {}));
+        s.sonAy = ay; eklenen++;
+      }
+      return s;
+    });
+    return { veri: Object.assign({}, veri, { giderler, sabitGiderler }), eklenen };
+  };
 
   const SAAT_RE = /^([01]\d|2[0-3]):[0-5]\d$/, TARIH_RE = /^\d{4}-\d{2}-\d{2}$/;
   const DURUMLAR = ['bekliyor', 'geldi', 'gelmedi', 'iptal'];
@@ -223,7 +260,19 @@
       durum: DURUMLAR.includes(r.durum) ? r.durum : 'bekliyor', not: metin(r.not).slice(0, 200),
       ...(r.ornek === true ? { ornek: true } : {}), // demo verisinden gelen randevu; "temiz başla" yalnızca bunları siler
     }));
-    return { ayar, islemler, randevular };
+    // giderler: eski kayıtlarda bu alanlar yoktur, boş kabul edilir
+    const AY_RE = /^\d{4}-(0[1-9]|1[0-2])$/, ayOku = a => (typeof a === 'string' && AY_RE.test(a) ? a : '');
+    const tutarGecerli = t => typeof t === 'number' && isFinite(t) && t > 0 && t <= 1e7;
+    const turOku = t => (BR.GIDER_TURLERI.includes(t) ? t : 'Diğer');
+    const isaret = o => (o.ornek === true ? { ornek: true } : {});
+    const giderler = (Array.isArray(x.giderler) ? x.giderler : []).filter(g => nesne(g) && tarihGecerli(g.tarih) && tutarGecerli(g.tutar)).map(g => Object.assign({
+      id: tekilId(g.id), tarih: g.tarih, tutar: g.tutar, tur: turOku(g.tur), not: metin(g.not).slice(0, 200),
+    }, metin(g.sabitId) ? { sabitId: metin(g.sabitId) } : {}, isaret(g)));
+    const sabitGiderler = (Array.isArray(x.sabitGiderler) ? x.sabitGiderler : [])
+      .filter(s => nesne(s) && tutarGecerli(s.tutar) && Number.isInteger(s.gun) && s.gun >= 1 && s.gun <= 31).map(s => Object.assign({
+        id: tekilId(s.id), tur: turOku(s.tur), tutar: s.tutar, gun: s.gun, not: metin(s.not).slice(0, 200), baslangic: ayOku(s.baslangic), sonAy: ayOku(s.sonAy),
+      }, isaret(s)));
+    return { ayar, islemler, randevular, giderler, sabitGiderler };
   };
 
   // Yazılan metne uyan eski müşteriler: en son gelen önce, ada göre tekil, en fazla 5.

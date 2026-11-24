@@ -132,3 +132,30 @@ Bu denetimde verilen kararlar:
 | Dokunuşlar sayfa geçişinde 0,4 sn yok sayılır | Çok hızlı kullanan biri dokunuşunu tekrarlamak zorunda kalabilir |
 | Müşteri önerisi sözcük başından eşleşir ("ah" → Ahmet; "Şahin" değil) | İsmin ortasından arama yapılamaz |
 | İşlem adı değişince eski randevular da yeni adla anılır (fiyatları aynı kalır) | Eski adla istatistik görülemez |
+
+
+## Gider takibi (24 Kasım 2026 eki)
+
+Alt çubuğa dördüncü sekme eklendi: **Gider**. Veri yine telefonda, aynı kayıtta ve aynı yedek dosyasında durur
+(`giderler`, `sabitGiderler`; bu alanları olmayan eski kayıtlar ve yedekler sorunsuz açılır).
+
+- **Gider:** tutar, tür (Kira, Fatura, Malzeme, Maaş, Vergi, Diğer), tarih, not. Ay ay gezilir, ayın toplamı üstte yazar.
+- **Her ay tekrar edenler:** gider eklerken "Her ay tekrarla" açılırsa sabit gider oluşur. Uygulama açıldığında vadesi gelmiş
+  aylar için sıradan gider satırı yazılır (`BR.sabitleriIsle`). Yazılan satır sonradan düzeltilebilir ya da silinebilir; silinen
+  yeniden yazılmaz. Sabit giderin tutarı değişirse yalnızca sonraki aylar etkilenir.
+- **Kasa (İstatistik):** her dönem için ciro, gider, kalan ve giderlerin türlere dağılımı. Yalnızca gider yazılmışsa görünür.
+  Giderler bugüne kadar olanlarla sayılır.
+- **Örnek veriler:** kira ve maaş (sabit gider olarak), faturalar, malzeme ve üç ayda bir vergi; tutarlar temsilidir.
+  "Örnekleri sil" örnek giderleri de siler, kullanıcının eklediği giderlere dokunmaz.
+
+Kararlar ve sınırlar:
+| Karar / sınır | Bedeli |
+|---|---|
+| Gider türleri sabit altı tür; kullanıcı yeni tür ekleyemez | Farklı bir tür "Diğer" + not ile yazılır |
+| Ciro yalnızca fiyatı girilmiş randevulardan gelir; randevusuz gelen müşteri sayılmaz | Kalan olduğundan düşük görünebilir; fiyatı boş randevu varsa Kasa'da uyarı çıkar |
+| Sabit gider ayrı bir ekrandan değil, gider eklerken "Her ay tekrarla" ile oluşturulur | İlk ay için tarih seçmek gerekir |
+| Sabit gider seçilen tarihin ayından başlar; ay kısaysa ayın son günü yazılır | 31'i seçilen gider Şubat'ta 28/29'una yazılır |
+| Muhasebe özellikleri yok: fiş numarası, KDV, Excel'e aktarma | İstenirse ayrı iş |
+| Giderler için sesle ekleme yok | Elle girilir |
+
+Kontroller: 70 hesap testi, 239 ekran denetimi. Gerçek telefonda denenmedi.
