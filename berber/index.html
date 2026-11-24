@@ -106,7 +106,9 @@ body.kilit{overflow:hidden}
 
 #fab{position:fixed;right:16px;bottom:calc(var(--sekme-y) + var(--alt) + 14px);z-index:6;min-height:54px;padding:0 20px 0 16px;border-radius:27px;background:var(--dugme);color:#fff;font-weight:700;font-size:16px;display:flex;align-items:center;gap:8px;box-shadow:0 6px 18px rgba(20,33,61,.32)}
 #fab i{font:400 26px/1 system-ui;font-style:normal;margin-top:-2px}
-body:not([data-sekme="gun"]) #fab,body:not([data-sekme="gun"]) #mikrofon{display:none}
+body:not([data-sekme="gun"]) #fab,body:not([data-sekme="gun"]) #mikrofon,body:not([data-sekme="gider"]) #gider-fab{display:none}
+#gider-fab{position:fixed;right:16px;bottom:calc(var(--sekme-y) + var(--alt) + 14px);z-index:6;min-height:54px;padding:0 20px 0 16px;border-radius:27px;background:var(--dugme);color:#fff;font-weight:700;font-size:16px;display:flex;align-items:center;gap:8px;box-shadow:0 6px 18px rgba(20,33,61,.32)}
+#gider-fab i{font:400 26px/1 system-ui;font-style:normal;margin-top:-2px}
 #mikrofon{position:fixed;right:16px;bottom:calc(var(--sekme-y) + var(--alt) + 80px);z-index:6;width:54px;height:54px;border-radius:27px;background:var(--kart);border:1px solid var(--cizgi);color:var(--mavi);display:grid;place-items:center;box-shadow:0 4px 14px rgba(20,33,61,.22)}
 #mikrofon svg,.ses-nabiz svg{width:26px;height:26px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 .ses-ic{align-items:center;text-align:center;padding-top:10px}
@@ -118,7 +120,7 @@ body:not([data-sekme="gun"]) #fab,body:not([data-sekme="gun"]) #mikrofon{display
 .duyulan{margin:0;padding:10px 12px;border-radius:10px;background:var(--mavi-zemin);font-size:15px;overflow-wrap:anywhere}
 
 /* ---------- alt sekmeler ---------- */
-#sekmeler{position:fixed;left:0;right:0;bottom:0;z-index:6;display:grid;grid-template-columns:repeat(3,1fr);background:var(--kart);border-top:1px solid var(--cizgi);padding-bottom:var(--alt)}
+#sekmeler{position:fixed;left:0;right:0;bottom:0;z-index:6;display:grid;grid-template-columns:repeat(4,1fr);background:var(--kart);border-top:1px solid var(--cizgi);padding-bottom:var(--alt)}
 #sekmeler button{height:var(--sekme-y);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:12px;color:var(--soluk);position:relative}
 #sekmeler svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 #sekmeler button[aria-current="page"]{color:var(--mavi);font-weight:700}
@@ -200,6 +202,39 @@ body:not([data-sekme="gun"]) #fab,body:not([data-sekme="gun"]) #mikrofon{display
 .dagilim-iz div{height:100%;border-radius:4px}
 #ist-yogun,#ist-bos{margin:20px 4px 0;font-size:15px;color:var(--soluk)}
 
+/* ---------- giderler ve kasa ---------- */
+#gider-ay{flex:1;margin:0;text-align:center;font:600 18px/1.2 var(--serif)}
+#gider-toplam{font:600 44px/1 var(--serif);letter-spacing:-.02em;font-variant-numeric:tabular-nums;white-space:nowrap}
+.gider-alt{margin:8px 0 0;font-size:15px;color:var(--soluk)}
+.gider-liste{list-style:none;margin:14px 0 0;padding:0}
+.gider,.sabit{display:flex;align-items:center;gap:10px;width:100%;min-height:58px;padding:8px 4px 8px 12px;border-top:1px solid var(--cizgi);border-left:5px solid var(--renk,#8A94A6)}
+.gider-liste li:last-child .gider,.gider-liste li:last-child .sabit{border-bottom:1px solid var(--cizgi)}
+.gider-gun{flex:none;width:52px;font:500 15px/1.2 var(--serif);color:var(--soluk);font-variant-numeric:tabular-nums}
+.gider-govde{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.gider-govde b{font-size:16px;font-weight:650}
+.gider-govde small{font-size:14px;color:var(--soluk);overflow-wrap:anywhere}
+.gider-tutar{flex:none;font:600 16px/1.2 var(--serif);font-variant-numeric:tabular-nums;white-space:nowrap}
+#gider-bos{margin:18px 4px 0;font-size:15px;color:var(--soluk)}
+.turler{grid-template-columns:repeat(3,1fr)}
+.tur-sec{min-height:48px;padding:6px 8px 6px 10px;border-radius:10px;background:var(--kart);border:1px solid var(--cizgi);border-left:5px solid var(--renk);font-size:15px;font-weight:650;min-width:0;overflow-wrap:anywhere}
+.tur-sec[aria-pressed="true"]{background:var(--mavi-zemin);border-color:var(--mavi);box-shadow:inset 0 0 0 1px var(--mavi)}
+.anahtar{display:flex;align-items:center;gap:12px;width:100%;min-height:56px;padding:8px 12px;border-radius:10px;background:var(--kart);border:1px solid var(--cizgi)}
+.anahtar::before{content:"";flex:none;width:26px;height:26px;border-radius:7px;border:2px solid var(--soluk);background:var(--kart)}
+.anahtar[aria-pressed="true"]{border-color:var(--mavi);background:var(--mavi-zemin)}
+.anahtar[aria-pressed="true"]::before{border-color:var(--mavi);background:var(--mavi) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23fff' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7.5'/%3E%3C/svg%3E") center/18px no-repeat}
+.anahtar span{display:flex;flex-direction:column;gap:1px;min-width:0}
+.anahtar b{font-size:16px;font-weight:650}
+.anahtar small{font-size:13px;color:var(--soluk)}
+.kasa{margin:0;border-top:1px solid var(--cizgi)}
+.kasa div{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:10px 4px;border-bottom:1px solid var(--cizgi)}
+.kasa dt{font-size:16px;color:var(--soluk)}
+.kasa dd{margin:0;font:600 18px/1.2 var(--serif);font-variant-numeric:tabular-nums;white-space:nowrap}
+.kasa .kasa-kalan dt{color:var(--murekkep);font-weight:650}
+.kasa .kasa-kalan dd{font-size:24px}
+.kasa .eksi{color:var(--kirmizi)}
+#kasa-not{margin:10px 4px 0}
+.kasa-dagilim{margin-top:14px}
+
 /* ---------- ayarlar ---------- */
 .kutu{padding:18px 4px 20px;border-bottom:1px solid var(--cizgi);display:flex;flex-direction:column;gap:10px}
 .kutu:last-child{border-bottom:0}
@@ -235,15 +270,17 @@ body.gecis{animation:dokunma-kilidi .38s}
 <main id="govde"></main>
 <button id="mikrofon" type="button" aria-label="Sesle randevu ekle" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3M8.5 21h7"/></svg></button>
 <button id="fab" type="button"><i aria-hidden="true">+</i>Randevu</button>
+<button id="gider-fab" type="button"><i aria-hidden="true">+</i>Gider</button>
 <nav id="sekmeler" aria-label="Bölümler">
   <button type="button" data-sekme="gun"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4M8 14h3M8 17h6"/></svg>Gün</button>
+  <button type="button" data-sekme="gider"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7.5A2.5 2.5 0 0 1 6.5 5H18v4M4 7.5V17.5A2.5 2.5 0 0 0 6.5 20H20V9H6.5A2.5 2.5 0 0 1 4 7.5Z"/><path d="M16 14.5h.5"/></svg>Gider</button>
   <button type="button" data-sekme="ist"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20.5h16M7 17v-5M12 17V6M17 17v-8"/></svg>İstatistik</button>
   <button type="button" data-sekme="ayar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h9M17 7h3M4 12h3M11 12h9M4 17h11M19 17h1"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="17" r="2"/></svg>Ayarlar</button>
 </nav>
 <div id="perde"></div>
 <section id="sayfa" role="dialog" aria-modal="true" aria-labelledby="sayfa-baslik" tabindex="-1"></section>
 <div id="bildirim" role="status" aria-live="polite"></div>
-<noscript><style>#fab,#mikrofon,#sekmeler{display:none}</style><p style="padding:24px 16px">Bu uygulama için tarayıcıda JavaScript açık olmalı.</p></noscript>
+<noscript><style>#fab,#gider-fab,#mikrofon,#sekmeler{display:none}</style><p style="padding:24px 16px">Bu uygulama için tarayıcıda JavaScript açık olmalı.</p></noscript>
 
 <script src="hesap.js"></script>
 <script src="ornek.js"></script>
@@ -253,7 +290,7 @@ body.gecis{animation:dokunma-kilidi .38s}
   'use strict';
   // Dosyalardan biri gelmediyse (kötü bağlantı) boş ekran yerine ne olduğunu söyle.
   if (!window.BR || !BR.dogrula || !BR.ornekVeri) {
-    for (const sec of ['#fab', '#mikrofon', '#sekmeler']) document.querySelector(sec).style.display = 'none';
+    for (const sec of ['#fab', '#gider-fab', '#mikrofon', '#sekmeler']) document.querySelector(sec).style.display = 'none';
     document.querySelector('#govde').innerHTML = '<p id="yuklenemedi" style="padding:24px 4px;font-size:17px">Uygulama yüklenemedi. İnternete bağlanıp sayfayı yenileyin.</p>';
     return;
   }
@@ -265,10 +302,13 @@ body.gecis{animation:dokunma-kilidi .38s}
   const para = BR.paraYaz;
 
   // d: ekranın durumu. veri depodan gelir; sayfa, alttan açılan sayfanın ne gösterdiğidir.
-  const d = { veri: null, sekme: 'gun', tarih: bugun(), sayfa: null, ist: { tur: 'ay', tarih: bugun() }, kapaliAcilis: null };
+  const d = { veri: null, sekme: 'gun', tarih: bugun(), sayfa: null, ist: { tur: 'ay', tarih: bugun() }, gider: { ay: bugun().slice(0, 7) }, kapaliAcilis: null };
 
   /* ---------- depo ---------- */
-  let depoBozuk = false; // kayıt vardı ama okunamadı
+  let depoBozuk = false;   // kayıt vardı ama okunamadı
+  let sabitYazildi = false; // yüklerken vadesi gelen sabit giderler yazıldı; kaydedilmeli
+  // Vadesi gelen sabit giderleri (kira gibi) yazar.
+  function sabitleriYaz(v) { const s = BR.sabitleriIsle(v, bugun()); if (s.eklenen) sabitYazildi = true; return s.veri; }
   function yukle() {
     let ham = null;
     try { ham = localStorage.getItem(ANAHTAR); } catch (e) { /* depolama kapalı */ }
@@ -276,7 +316,7 @@ body.gecis{animation:dokunma-kilidi .38s}
       let v = null;
       try { v = BR.dogrula(JSON.parse(ham)); } catch (e) { /* bozuk kayıt */ }
       // Örnek veriler duruyorsa ve gün değiştiyse örnekleri bugüne göre yenile (demo günler sonra da dolu açılsın).
-      if (v) return v.ayar.ornek && v.ayar.ornekGun !== bugun() ? BR.ornekYenile(v, bugun()) : v;
+      if (v) return sabitleriYaz(v.ayar.ornek && v.ayar.ornekGun !== bugun() ? BR.ornekYenile(v, bugun()) : v);
       try { localStorage.setItem(ANAHTAR + '-bozuk', ham); } catch (e) { /* yer yok */ }
       depoBozuk = true;
     }
@@ -289,7 +329,8 @@ body.gecis{animation:dokunma-kilidi .38s}
 
   const kayitUyarisi = () => bildir('Kaydedilemedi: telefonun depolaması dolu ya da kapalı. Ayarlar’dan yedek indirin.', 6000);
   // Başka bir pencerede (ya da ana ekran uygulamasında) yapılan değişikliği al: son yazan öncekini ezmesin.
-  function depodanYenile() { d.veri = yukle(); if (!d.sayfa) ciz(false); }
+  function veriYukle() { d.veri = yukle(); if (sabitYazildi) { sabitYazildi = false; kaydet(); } }
+  function depodanYenile() { veriYukle(); if (!d.sayfa) ciz(false); }
   window.addEventListener('storage', e => { if (e.key === ANAHTAR || e.key === null) depodanYenile(); });
 
   /* ---------- yardımcılar ---------- */
@@ -315,7 +356,7 @@ body.gecis{animation:dokunma-kilidi .38s}
   function ustHtml() {
     const dukkan = `<div id="baslik-dukkan">${k(d.veri.ayar.dukkan || 'Berber Randevu')}</div>`;
     if (d.sekme !== 'gun') {
-      return `<div class="ust-satir">${dukkan}</div><h1 class="ust-baslik">${d.sekme === 'ist' ? 'İstatistik' : 'Ayarlar'}</h1><div class="direk"></div>`;
+      return `<div class="ust-satir">${dukkan}</div><h1 class="ust-baslik">${{ ist: 'İstatistik', gider: 'Giderler', ayar: 'Ayarlar' }[d.sekme]}</h1><div class="direk"></div>`;
     }
     const bg = bugun(), haftaBasi = BR.donem('hafta', d.tarih).bas;
     let hafta = '';
@@ -403,7 +444,7 @@ body.gecis{animation:dokunma-kilidi .38s}
   const CUBUK_BOYU = 112;
   function istHtml() {
     const tur = d.ist.tur, tarih = d.ist.tarih, bg = bugun();
-    const st = BR.istatistik(d.veri.randevular, tur, tarih, simdi()), dn = BR.donem(tur, tarih);
+    const st = BR.istatistik(d.veri.randevular, tur, tarih, simdi(), d.veri.giderler), dn = BR.donem(tur, tarih);
     // Süren dönem önceki dönemin aynı noktasıyla, bitmiş dönem tamamıyla karşılaştırılır; başlamamış dönemde karşılaştırma yapılmaz.
     const fark = st.kisi - st.oncekiAyni, yazili = st.yazili ? say(st.yazili) + ' randevu yazılı.' : '';
     const farkYazi = !st.basladi ? 'Bu dönem henüz başlamadı. ' + (yazili || 'Yazılı randevu yok.')
@@ -412,7 +453,7 @@ body.gecis{animation:dokunma-kilidi .38s}
     let h = `<div class="donemler" role="group" aria-label="Dönem">${Object.keys(TUR_AD).map(t => `<button type="button" data-tur="${t}" aria-pressed="${t === tur}">${TUR_AD[t]}</button>`).join('')}</div>
       <div class="donem-gez"><button type="button" class="ok2" id="ist-onceki" aria-label="Önceki dönem">‹</button><h2 id="ist-etiket">${k(dn.etiket)}</h2><button type="button" class="ok2" id="ist-sonraki" aria-label="Sonraki dönem">›</button></div>
       <section class="ist-ana"><div class="ist-sayi"><div id="ist-kisi">${say(st.kisi)}</div><p class="ist-ad">kişi tıraş edildi</p></div><p id="ist-fark">${farkYazi}</p></section>`;
-    if (!st.kisi && !st.gelmedi && !st.iptal) return h + (!st.basladi ? '' : `<p id="ist-bos">${yazili ? 'Bu dönemde henüz tıraş edilen yok; ' + yazili : 'Bu dönemde kayıt yok.'}</p>`);
+    if (!st.kisi && !st.gelmedi && !st.iptal) return h + ((!st.basladi ? '' : `<p id="ist-bos">${yazili ? 'Bu dönemde henüz tıraş edilen yok; ' + yazili : 'Bu dönemde kayıt yok.'}</p>`) + kasaHtml(st));
     if (st.kisi) {
       const enCok = Math.max(...st.seri.map(x => x.kisi)), degerli = st.seri.length <= 12;
       const adGoster = i => tur !== 'ay' || i === 0 || (i + 1) % 5 === 0;
@@ -427,7 +468,114 @@ body.gecis{animation:dokunma-kilidi .38s}
       }).join('') + '</ul>';
       h += `<p id="ist-yogun">${st.enYogunGun ? `En yoğun gün ${st.enYogunGun.etiket}, en yoğun saat ${st.enYogunSaat.saat}.` : `En yoğun saat ${st.enYogunSaat.saat}.`}</p>`;
     }
-    return h;
+    return h + kasaHtml(st);
+  }
+  // Kasa: dönemin cirosu, gideri ve kalan. Yalnızca gider yazılmışsa gösterilir.
+  function kasaHtml(st) {
+    if (!st.gider) return '';
+    const kalan = Math.round((st.ciro - st.gider) * 100) / 100;
+    return `<h3 class="ara-baslik">Kasa</h3>
+      <dl class="kasa"><div><dt>Ciro</dt><dd id="kasa-ciro">${para(st.ciro)}</dd></div><div><dt>Gider</dt><dd id="kasa-gider">${para(st.gider)}</dd></div>
+        <div class="kasa-kalan"><dt>Kalan</dt><dd id="kasa-kalan"${kalan < 0 ? ' class="eksi"' : ''}>${para(kalan)}</dd></div></dl>
+      ${st.fiyatsiz ? `<p class="aciklama" id="kasa-not">${say(st.fiyatsiz)} randevunun fiyatı girilmemiş; ciro olduğundan düşük görünür.</p>` : ''}
+      <ul class="dagilim kasa-dagilim">${st.giderDagilim.map(x => `<li class="kasa-satir"><div class="dagilim-ust"><span class="dagilim-ad">${k(x.ad)}</span><span class="dagilim-say">${para(x.tutar)}, %${x.yuzde}</span></div><div class="dagilim-iz"><div style="width:${x.yuzde}%;background:${BR.GIDER_RENGI[x.ad] || '#8A94A6'}"></div></div></li>`).join('')}</ul>`;
+  }
+
+  /* ---------- giderler ekranı ---------- */
+  const ikiHane = n => String(n).padStart(2, '0');
+  const ayKaydir = (ay, n) => { const [y, a] = ay.split('-').map(Number), t = new Date(y, a - 1 + n, 1); return t.getFullYear() + '-' + ikiHane(t.getMonth() + 1); };
+  // "Her ayın 1’i", "6’sı", "10’u": günün iyelik eki
+  function gunEki(n) {
+    if (n === 10 || n === 30) return 'u';
+    if (n === 20) return 'si';
+    return { 1: 'i', 2: 'si', 3: 'ü', 4: 'ü', 5: 'i', 6: 'sı', 7: 'si', 8: 'i', 9: 'u' }[n % 10];
+  }
+  function giderHtml() {
+    const ay = d.gider.ay, [y, a] = ay.split('-').map(Number);
+    const liste = d.veri.giderler.filter(g => g.tarih.startsWith(ay)).sort((p, q) => q.tarih.localeCompare(p.tarih));
+    const toplam = Math.round(liste.reduce((t, g) => t + g.tutar, 0) * 100) / 100;
+    const satir = g => `<li><button type="button" class="gider" data-gider="${k(g.id)}" style="--renk:${BR.GIDER_RENGI[g.tur] || '#8A94A6'}">
+      <span class="gider-gun">${Number(g.tarih.slice(8))} ${BR.AY_KISA[a - 1]}</span>
+      <span class="gider-govde"><b>${k(g.tur)}</b>${g.not || g.sabitId ? `<small>${k([g.not, g.sabitId ? 'her ay' : ''].filter(Boolean).join(', '))}</small>` : ''}</span>
+      <span class="gider-tutar">${para(g.tutar)}</span></button></li>`;
+    const sabit = x => `<li><button type="button" class="sabit" data-sabit="${k(x.id)}" style="--renk:${BR.GIDER_RENGI[x.tur] || '#8A94A6'}">
+      <span class="gider-govde"><b>${k(x.tur)}</b><small>${k(['Her ayın ' + x.gun + '’' + gunEki(x.gun), x.not].filter(Boolean).join(', '))}</small></span>
+      <span class="gider-tutar">${para(x.tutar)}</span></button></li>`;
+    return `<div class="donem-gez"><button type="button" class="ok2" id="gider-onceki" aria-label="Önceki ay">‹</button><h2 id="gider-ay">${BR.AYLAR[a - 1]} ${y}</h2><button type="button" class="ok2" id="gider-sonraki" aria-label="Sonraki ay">›</button></div>
+      <section class="ist-ana"><div class="ist-sayi"><div id="gider-toplam">${para(toplam)}</div><p class="ist-ad">gider</p></div>${liste.length ? `<p class="gider-alt">${say(liste.length)} kalem</p>` : ''}</section>
+      ${liste.length ? `<ul class="gider-liste">${liste.map(satir).join('')}</ul>` : '<p id="gider-bos">Bu ay gider yazılmamış. “+ Gider” ile ekleyin.</p>'}
+      <h3 class="ara-baslik">Her ay tekrar edenler</h3>
+      ${d.veri.sabitGiderler.length ? `<ul class="gider-liste">${d.veri.sabitGiderler.map(sabit).join('')}</ul>`
+        : '<p class="aciklama" style="margin:0 4px">Kira gibi her ay ödenen bir gideri eklerken “Her ay tekrarla”yı açın; sonraki aylarda kendiliğinden yazılır.</p>'}`;
+  }
+  const turDugmeleri = secili => `<div><p class="grup-ad" id="tur-ad">Tür</p><div class="islemler turler" role="group" aria-labelledby="tur-ad">${BR.GIDER_TURLERI.map(t =>
+    `<button type="button" class="tur-sec" data-gtur="${t}" style="--renk:${BR.GIDER_RENGI[t]}" aria-pressed="${t === secili}">${t}</button>`).join('')}</div></div>`;
+  const tutarOku = sec => { const t = BR.fiyatCoz($(sec).value); return typeof t === 'number' && t > 0 && t <= 1e7 ? t : null; };
+  function giderFormAc(id, silSor) {
+    const mevcut = id ? d.veri.giderler.find(g => g.id === id) : null, buAy = bugun().slice(0, 7);
+    const g = mevcut || { tarih: d.gider.ay === buAy ? bugun() : d.gider.ay + '-01', tutar: null, tur: 'Malzeme', not: '' };
+    d.sayfa = { tur: 'gider', id: mevcut ? mevcut.id : null, secili: g.tur, tekrar: false };
+    sayfaAc(`${sayfaBas(mevcut ? 'Gideri düzenle' : 'Yeni gider')}
+      <div class="sayfa-ic">
+        <label class="alan">Tutar (₺)<input id="gd-tutar" type="text" inputmode="decimal" autocomplete="off" maxlength="12" value="${BR.fiyatYaz(g.tutar)}"></label>
+        ${turDugmeleri(g.tur)}
+        <div class="ikili"><label class="alan">Tarih<input id="gd-tarih" type="date" min="2000-01-01" max="2099-12-31" value="${g.tarih}"></label>
+          <label class="alan">Not (isteğe bağlı)<input id="gd-not" type="text" autocomplete="off" maxlength="200" value="${k(g.not || '')}"></label></div>
+        ${mevcut ? (mevcut.sabitId ? '<p class="aciklama">Bu gider her ay tekrar edenlerden yazıldı. Buradaki değişiklik yalnızca bu ayı etkiler.</p>' : '')
+          : '<button type="button" class="anahtar" id="gd-tekrar" aria-pressed="false"><span><b>Her ay tekrarla</b><small>Kira gibi sabit giderler için. Sonraki aylarda aynı gün kendiliğinden yazılır.</small></span></button>'}
+        <p class="hata" id="gd-hata" role="alert" hidden></p>
+        ${silSor ? '<p class="uyari">Bu gider silinsin mi? Geri alınamaz.</p>' : ''}
+      </div>
+      <div class="sayfa-alt">${silSor
+        ? '<button type="button" class="ikincil" id="gd-sil-hayir">Vazgeç</button><button type="button" class="tehlike" id="gd-sil-evet">Evet, sil</button>'
+        : (mevcut ? '<button type="button" class="tehlike" id="gd-sil">Sil</button>' : '') + '<button type="button" class="ana" id="gd-kaydet">Kaydet</button>'}</div>`);
+    if (!mevcut) $('#gd-tutar').focus();
+  }
+  function giderKaydet() {
+    const s = d.sayfa, hata = yazi => { const h = $('#gd-hata'); h.textContent = yazi; h.hidden = false; };
+    const tutar = tutarOku('#gd-tutar'), tarih = $('#gd-tarih').value, not = $('#gd-not').value.replace(/\s+/g, ' ').trim();
+    if (tutar === null) { hata('Tutarı rakamla yazın.'); return $('#gd-tutar').focus(); }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(tarih) || tarih < '2000-01-01' || tarih > '2099-12-31') return hata('Geçerli bir tarih seçin.');
+    const alanlar = { tarih, tutar, tur: s.secili, not };
+    if (s.id) { const g = d.veri.giderler.find(x => x.id === s.id); Object.assign(g, alanlar); delete g.ornek; }
+    else {
+      const gider = Object.assign({ id: BR.yeniId() }, alanlar);
+      if (s.tekrar) { // bu ayın gideri yazılır, sonraki aylar için sabit gider oluşur
+        const sabit = { id: BR.yeniId(), tur: s.secili, tutar, gun: Number(tarih.slice(8)), not, baslangic: tarih.slice(0, 7), sonAy: tarih.slice(0, 7) };
+        gider.sabitId = sabit.id;
+        d.veri.sabitGiderler.push(sabit);
+      }
+      d.veri.giderler.push(gider);
+      if (s.tekrar) d.veri = BR.sabitleriIsle(d.veri, bugun()).veri; // geçmiş bir aydan başlatıldıysa aradaki aylar da yazılır
+    }
+    d.gider.ay = tarih.slice(0, 7);
+    const oldu = kaydet(); sayfaKapat(); ciz(false);
+    if (oldu) bildir(`${alanlar.tur}, ${para(tutar)} kaydedildi`);
+  }
+  function sabitFormAc(id, silSor) {
+    const x = d.veri.sabitGiderler.find(q => q.id === id);
+    if (!x) return sayfaKapat();
+    d.sayfa = { tur: 'sabit', id, secili: x.tur };
+    sayfaAc(`${sayfaBas('Her ay tekrar eden gider')}
+      <div class="sayfa-ic">
+        <div class="ikili"><label class="alan">Tutar (₺)<input id="sb-tutar" type="text" inputmode="decimal" autocomplete="off" maxlength="12" value="${BR.fiyatYaz(x.tutar)}"></label>
+          <label class="alan">Ayın günü<select id="sb-gun">${Array.from({ length: 31 }, (_, i) => `<option value="${i + 1}"${i + 1 === x.gun ? ' selected' : ''}>${i + 1}</option>`).join('')}</select></label></div>
+        ${turDugmeleri(x.tur)}
+        <label class="alan">Not (isteğe bağlı)<input id="sb-not" type="text" autocomplete="off" maxlength="200" value="${k(x.not || '')}"></label>
+        <p class="aciklama">Değişiklik bundan sonraki ayları etkiler; yazılmış aylar olduğu gibi kalır. Ay daha kısaysa ayın son günü yazılır.</p>
+        <p class="hata" id="sb-hata" role="alert" hidden></p>
+        ${silSor ? '<p class="uyari">Bu gider artık her ay yazılmayacak. Önceki aylarda yazılanlar kalır.</p>' : ''}
+      </div>
+      <div class="sayfa-alt">${silSor
+        ? '<button type="button" class="ikincil" id="sb-sil-hayir">Vazgeç</button><button type="button" class="tehlike" id="sb-sil-evet">Evet, durdur</button>'
+        : '<button type="button" class="tehlike" id="sb-sil">Sil</button><button type="button" class="ana" id="sb-kaydet">Kaydet</button>'}</div>`);
+  }
+  function sabitKaydet() {
+    const s = d.sayfa, x = d.veri.sabitGiderler.find(q => q.id === s.id), tutar = tutarOku('#sb-tutar');
+    if (tutar === null) { const h = $('#sb-hata'); h.textContent = 'Tutarı rakamla yazın.'; h.hidden = false; return $('#sb-tutar').focus(); }
+    Object.assign(x, { tutar, gun: Number($('#sb-gun').value), tur: s.secili, not: $('#sb-not').value.replace(/\s+/g, ' ').trim() });
+    delete x.ornek;
+    kaydet(); sayfaKapat(); ciz(false);
   }
 
   /* ---------- ayarlar ekranı ---------- */
@@ -555,7 +703,7 @@ body.gecis{animation:dokunma-kilidi .38s}
       d.veri = eski; sayfaKapat(); ciz(false);
       return bildir('Kaydedilemedi: telefonda yeterli yer yok ya da depolama kapalı. Hiçbir şey değiştirilmedi.', 8000);
     }
-    d.tarih = bugun(); d.ist.tarih = bugun(); d.kapaliAcilis = null;
+    d.tarih = bugun(); d.ist.tarih = bugun(); d.gider.ay = bugun().slice(0, 7); d.kapaliAcilis = null;
     sayfaKapat(); ciz(true); bildir(yazi);
   }
 
@@ -565,7 +713,7 @@ body.gecis{animation:dokunma-kilidi .38s}
     cizilenBugun = bugun();
     document.body.dataset.sekme = d.sekme;
     $('#ust').innerHTML = ustHtml();
-    $('#govde').innerHTML = d.sekme === 'gun' ? gunHtml() : d.sekme === 'ist' ? istHtml() : ayarHtml();
+    $('#govde').innerHTML = { gun: gunHtml, gider: giderHtml, ist: istHtml, ayar: ayarHtml }[d.sekme]();
     for (const b of document.querySelectorAll('#sekmeler button')) {
       if (b.dataset.sekme === d.sekme) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
     }
@@ -579,7 +727,7 @@ body.gecis{animation:dokunma-kilidi .38s}
   /* ---------- alttan açılan sayfa ---------- */
   // Sayfa açıkken arka plan etkisizdir ve odak sayfadadır. Tarayıcı geçmişine bir kayıt eklenir ki
   // Android'in geri tuşu uygulamadan çıkmak yerine sayfayı kapatsın.
-  const ARKA_PLAN = ['#ust', '#govde', '#sekmeler', '#fab', '#mikrofon'];
+  const ARKA_PLAN = ['#ust', '#govde', '#sekmeler', '#fab', '#gider-fab', '#mikrofon'];
   let gecmisteSayfa = false, oncekiOdak = null;
   try { history.scrollRestoration = 'manual'; } catch (e) { /* eski tarayıcı */ } // geri dönüşte tarayıcı kaydırmayı eski yerine çekmesin
   function dokunmaKilidi() { const b = document.body; b.classList.remove('gecis'); void b.offsetWidth; b.classList.add('gecis'); }
@@ -815,7 +963,7 @@ body.gecis{animation:dokunma-kilidi .38s}
     const h = sec => e.target.closest(sec);
     let el;
     // Perdeye dokunmak yazı girilen sayfaları kapatmaz: yarım kalan form yanlışlıkla silinmesin.
-    if (e.target.id === 'perde') return d.sayfa && ['form', 'islem'].includes(d.sayfa.tur) ? undefined : sayfaKapat();
+    if (e.target.id === 'perde') return d.sayfa && ['form', 'islem', 'gider', 'sabit'].includes(d.sayfa.tur) ? undefined : sayfaKapat();
     if (h('#sayfa-kapat') || h('#onay-hayir')) return sayfaKapat();
     if ((el = h('#sekmeler [data-sekme]'))) { d.sekme = el.dataset.sekme; return ciz(true); }
     if (h('#onceki')) return gunSec(BR.gunEkle(d.tarih, -1));
@@ -830,10 +978,15 @@ body.gecis{animation:dokunma-kilidi .38s}
     if ((el = h('.rnd'))) return ayrintiAc(el.dataset.id);
     if (h('#temiz-basla') || h('#ornek-sil')) {
       const ornek = d.veri.randevular.filter(r => r.ornek === true).length, kendi = d.veri.randevular.length - ornek;
-      return onaySayfasi('Örnekleri sil', `${say(ornek)} örnek randevu ve örnek fiyatlar silinir. ` +
-        (kendi ? `Kendi eklediğiniz ${say(kendi)} randevu, ` : 'Kendi eklediğiniz ') + 'işlemler, dükkân adı ve çalışma saatleri kalır.', 'temiz-evet', 'Örnekleri sil');
+      return onaySayfasi('Örnekleri sil', `${say(ornek)} örnek randevu, örnek giderler ve örnek fiyatlar silinir. ` +
+        (kendi ? `Kendi eklediğiniz ${say(kendi)} randevu, ` : 'Kendi eklediğiniz ') + 'giderler, işlemler, dükkân adı ve çalışma saatleri kalır.', 'temiz-evet', 'Örnekleri sil');
     }
     if (h('#temiz-evet')) return temizBasla();
+    if (h('#gider-onceki')) { d.gider.ay = ayKaydir(d.gider.ay, -1); return ciz(false); }
+    if (h('#gider-sonraki')) { d.gider.ay = ayKaydir(d.gider.ay, 1); return ciz(false); }
+    if (h('#gider-fab')) return giderFormAc(null);
+    if ((el = h('.gider'))) return giderFormAc(el.dataset.gider);
+    if ((el = h('.sabit'))) return sabitFormAc(el.dataset.sabit);
     if ((el = h('[data-tur]'))) { d.ist.tur = el.dataset.tur; return ciz(false); }
     if (h('#ist-onceki')) { d.ist.tarih = BR.donemKaydir(d.ist.tur, d.ist.tarih, -1); return ciz(false); }
     if (h('#ist-sonraki')) { d.ist.tarih = BR.donemKaydir(d.ist.tur, d.ist.tarih, 1); return ciz(false); }
@@ -870,6 +1023,22 @@ body.gecis{animation:dokunma-kilidi .38s}
       }
       if (h('#f-kaydet')) return formKaydet();
     }
+    if (s && (s.tur === 'gider' || s.tur === 'sabit')) {
+      if ((el = h('.tur-sec'))) {
+        s.secili = el.dataset.gtur; // data-tur istatistikteki dönem düğmelerine ait
+        for (const b of document.querySelectorAll('.tur-sec')) b.setAttribute('aria-pressed', String(b === el));
+        return;
+      }
+      if ((el = h('#gd-tekrar'))) { s.tekrar = !s.tekrar; return el.setAttribute('aria-pressed', String(s.tekrar)); }
+      if (h('#gd-kaydet')) return giderKaydet();
+      if (h('#gd-sil')) return giderFormAc(s.id, true);
+      if (h('#gd-sil-hayir')) return giderFormAc(s.id);
+      if (h('#gd-sil-evet')) { d.veri.giderler = d.veri.giderler.filter(g => g.id !== s.id); kaydet(); sayfaKapat(); return ciz(false); }
+      if (h('#sb-kaydet')) return sabitKaydet();
+      if (h('#sb-sil')) return sabitFormAc(s.id, true);
+      if (h('#sb-sil-hayir')) return sabitFormAc(s.id);
+      if (h('#sb-sil-evet')) { d.veri.sabitGiderler = d.veri.sabitGiderler.filter(q => q.id !== s.id); kaydet(); sayfaKapat(); return ciz(false); }
+    }
     if (s && s.tur === 'islem') {
       if ((el = h('[data-renk]'))) {
         s.renk = el.dataset.renk;
@@ -900,6 +1069,8 @@ body.gecis{animation:dokunma-kilidi .38s}
     }
   });
   document.addEventListener('input', e => {
+    if (e.target.id === 'gd-tutar') $('#gd-hata').hidden = true;
+    if (e.target.id === 'sb-tutar') $('#sb-hata').hidden = true;
     if (e.target.id === 'a-dukkan') { // yazarken kaydet: alan bırakılmadan uygulama kapatılırsa ad kaybolmasın
       d.veri.ayar.dukkan = e.target.value.replace(/\s+/g, ' ').trim().slice(0, 60); kaydet();
       $('#baslik-dukkan').textContent = d.veri.ayar.dukkan || 'Berber Randevu';
@@ -932,7 +1103,7 @@ body.gecis{animation:dokunma-kilidi .38s}
       if (d.tarih === sonBugun) d.tarih = bg;
       if (d.ist.tarih === sonBugun) d.ist.tarih = bg;
       sonBugun = bg;
-      if (d.veri.ayar.ornek) d.veri = yukle(); // örnek veriler yeni güne göre yenilenir
+      veriYukle(); // örnek veriler yeni güne göre yenilenir, vadesi gelen sabit giderler yazılır
     }
     if (d.sayfa) return;
     if (cizilenBugun !== bg) return ciz(d.sekme === 'gun');
@@ -943,7 +1114,7 @@ body.gecis{animation:dokunma-kilidi .38s}
   document.addEventListener('visibilitychange', () => { if (!document.hidden) { depodanYenile(); tazele(); } });
 
   if (SesTanima && BR.sesCoz) $('#mikrofon').hidden = false;
-  d.veri = yukle();
+  veriYukle();
   // Örnek verilerle açılırken bugün kapalıysa boş bir gün yerine ilk açık günü göster.
   if (d.veri.ayar.ornek && d.veri.ayar.kapali.includes(simdi().getDay())) {
     for (let i = 1; i <= 7; i++) {
