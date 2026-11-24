@@ -32,15 +32,52 @@
     ayar: Object.assign({}, veri.ayar, { ornek: false, ornekGun: '' }),
     islemler: veri.islemler.map(i => Object.assign({}, i, BR.ORNEK_FIYAT[i.id] === i.fiyat ? { fiyat: null } : {})),
     randevular: veri.randevular.filter(r => r.ornek !== true),
+    giderler: (veri.giderler || []).filter(g => g.ornek !== true),
+    sabitGiderler: (veri.sabitGiderler || []).filter(s => s.ornek !== true),
   });
 
   // Örnek veriler kayıtlıyken gün değiştiyse: örnekler bugüne göre yeniden üretilir, kullanıcının kendi kayıtları,
   // ayarları ve işlemleri olduğu gibi kalır. Böylece demo bir hafta sonra açıldığında da dolu görünür.
-  BR.ornekYenile = (veri, bugun) => ({
-    ayar: Object.assign({}, veri.ayar, { ornek: true, ornekGun: bugun }),
-    islemler: veri.islemler,
-    randevular: BR.ornekVeri(bugun).randevular.concat(veri.randevular.filter(r => r.ornek !== true)),
-  });
+  BR.ornekYenile = (veri, bugun) => {
+    const yeni = BR.ornekVeri(bugun);
+    return {
+      ayar: Object.assign({}, veri.ayar, { ornek: true, ornekGun: bugun }),
+      islemler: veri.islemler,
+      randevular: yeni.randevular.concat(veri.randevular.filter(r => r.ornek !== true)),
+      giderler: yeni.giderler.concat((veri.giderler || []).filter(g => g.ornek !== true)),
+      sabitGiderler: yeni.sabitGiderler.concat((veri.sabitGiderler || []).filter(s => s.ornek !== true)),
+    };
+  };
+
+  // Örnek giderler: kira ve maaş her ay (sabit gider olarak), faturalar, malzeme ve üç ayda bir vergi. Tutarlar temsilidir.
+  function ornekGiderler(veri, ilk, bugun) {
+    const buAy = bugun.slice(0, 7), buYil = Number(bugun.slice(0, 4)), ilkAy = ilk.slice(0, 7);
+    const MALZEME = ['Jilet, tıraş köpüğü', 'Havlu, önlük', 'Wax, saç spreyi', 'Kolonya, losyon', 'Makine başlığı, tarak'];
+    const iki = n => String(n).padStart(2, '0');
+    let no = 0;
+    const yaz = (tarih, tutar, tur, not, sabitId) => {
+      if (tarih < ilk || tarih > bugun) return;
+      veri.giderler.push(Object.assign({ id: 'og' + (no++), tarih, tutar, tur, not }, sabitId ? { sabitId } : {}, { ornek: true }));
+    };
+    for (let ay = ilkAy; ay <= buAy; ay = (Number(ay.slice(5)) === 12 ? (Number(ay.slice(0, 4)) + 1) + '-01' : ay.slice(0, 5) + iki(Number(ay.slice(5)) + 1))) {
+      const r = mulberry32(tohum('gider' + ay)), yil = Number(ay.slice(0, 4)), a = Number(ay.slice(5));
+      const arasi = (az, cok, adim) => az + adim * Math.floor(r() * ((cok - az) / adim + 1));
+      const gun = (az, cok) => ay + '-' + iki(az + Math.floor(r() * (cok - az + 1)));
+      yaz(ay + '-01', yil < buYil ? 15000 : 18000, 'Kira', 'Dükkân kirası', 'ornek-kira');
+      yaz(gun(8, 12), arasi(400, 700, 50), 'Fatura', 'Su');
+      yaz(gun(13, 18), arasi(1800, 2600, 100), 'Fatura', 'Elektrik');
+      yaz(gun(15, 19), [11, 12, 1, 2, 3].includes(a) ? arasi(900, 1800, 100) : arasi(150, 300, 50), 'Fatura', 'Doğalgaz');
+      yaz(ay + '-20', 450, 'Fatura', 'İnternet');
+      for (let k = 0, adet = 2 + Math.floor(r() * 2); k < adet; k++) yaz(gun(2, 27), arasi(900, 2400, 100), 'Malzeme', MALZEME[Math.floor(r() * MALZEME.length)]);
+      if (a % 3 === 1) yaz(ay + '-17', 3000, 'Vergi', 'Geçici vergi');
+      yaz(ay + '-28', 20000, 'Maaş', 'Kalfa maaşı', 'ornek-maas');
+    }
+    veri.giderler.sort((x, y) => x.tarih.localeCompare(y.tarih));
+    const oncekiAy = buAy.slice(5) === '01' ? (buYil - 1) + '-12' : buAy.slice(0, 5) + iki(Number(buAy.slice(5)) - 1);
+    veri.sabitGiderler.push(
+      { id: 'ornek-kira', tur: 'Kira', tutar: 18000, gun: 1, not: 'Dükkân kirası', baslangic: ilkAy, sonAy: buAy, ornek: true },
+      { id: 'ornek-maas', tur: 'Maaş', tutar: 20000, gun: 28, not: 'Kalfa maaşı', baslangic: ilkAy, sonAy: bugun.slice(8) >= '28' ? buAy : oncekiAy, ornek: true });
+  }
 
   BR.ornekVeri = bugun => {
     const veri = BR.varsayilanVeri();
@@ -99,6 +136,7 @@
       gun.sort((x, y) => x.saat.localeCompare(y.saat));
       veri.randevular.push(...gun);
     }
+    ornekGiderler(veri, ilk, bugun);
     return veri;
   };
 
